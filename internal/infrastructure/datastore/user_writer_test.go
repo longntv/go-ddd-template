@@ -31,10 +31,10 @@ func Test_userWriter_Create(t *testing.T) {
 
 	tests := map[string]testcase{
 		"creates a new user": {
-			user: &entity.User{ID: uuid.MustParse("44444444-4444-4444-4444-444444444444"), Name: "Dave", Email: "dave@example.com", Password: "password-dave"},
+			user: &entity.User{ID: uuid.MustParse("44444444-4444-4444-4444-444444444444"), Name: "Dave", Email: "dave@example.com", PasswordHash: "$2a$04$dave-hash"},
 		},
 		"rejects a duplicate email": {
-			user:    &entity.User{ID: uuid.MustParse("55555555-5555-5555-5555-555555555555"), Name: "Alice 2", Email: "alice@example.com", Password: "password"},
+			user:    &entity.User{ID: uuid.MustParse("55555555-5555-5555-5555-555555555555"), Name: "Alice 2", Email: "alice@example.com", PasswordHash: "$2a$04$hash"},
 			wantErr: true,
 		},
 	}
@@ -78,10 +78,10 @@ func Test_userWriter_Update(t *testing.T) {
 
 	tests := map[string]testcase{
 		"updates an existing user": {
-			user: &entity.User{ID: fixtureAlice.ID, Name: "Alice B", Email: "alice.b@example.com", Password: "new-password"},
+			user: &entity.User{ID: fixtureAlice.ID, Name: "Alice B", Email: "alice.b@example.com", PasswordHash: "$2a$04$new-hash"},
 		},
 		"returns not found for unknown id": {
-			user:    &entity.User{ID: uuid.MustParse("99999999-9999-9999-9999-999999999999"), Name: "X", Email: "x@example.com", Password: "password"},
+			user:    &entity.User{ID: uuid.MustParse("99999999-9999-9999-9999-999999999999"), Name: "X", Email: "x@example.com", PasswordHash: "$2a$04$hash"},
 			wantErr: gorm.ErrRecordNotFound,
 		},
 	}

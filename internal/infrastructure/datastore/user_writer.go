@@ -22,10 +22,10 @@ func NewUserWriter(db *gorm.DB) gateway.UserCommandsGateway {
 // Create creates a new user.
 func (w *userWriter) Create(ctx context.Context, user *entity.User) error {
 	userEntity := &UserEntity{
-		ID:       user.ID,
-		Name:     user.Name,
-		Email:    user.Email,
-		Password: user.Password,
+		ID:           user.ID,
+		Name:         user.Name,
+		Email:        user.Email,
+		PasswordHash: user.PasswordHash,
 	}
 	return w.db.WithContext(ctx).Create(userEntity).Error
 }
@@ -33,9 +33,9 @@ func (w *userWriter) Create(ctx context.Context, user *entity.User) error {
 // Update updates an existing user.
 func (w *userWriter) Update(ctx context.Context, user *entity.User) error {
 	updates := map[string]interface{}{
-		"name":     user.Name,
-		"email":    user.Email,
-		"password": user.Password,
+		"name":          user.Name,
+		"email":         user.Email,
+		"password_hash": user.PasswordHash,
 	}
 	result := w.db.WithContext(ctx).Model(&UserEntity{}).Where("id = ?", user.ID).Updates(updates)
 	if result.Error != nil {

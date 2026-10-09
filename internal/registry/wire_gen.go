@@ -17,6 +17,7 @@ import (
 	"github.com/longntv/go-ddd-template/internal/infrastructure/aws/sns"
 	"github.com/longntv/go-ddd-template/internal/infrastructure/aws/sqs"
 	"github.com/longntv/go-ddd-template/internal/infrastructure/cloudevents"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/crypto"
 	"github.com/longntv/go-ddd-template/internal/infrastructure/datastore"
 	"github.com/longntv/go-ddd-template/internal/service"
 	"go.uber.org/zap"
@@ -33,6 +34,7 @@ func InitializeServer(cfg *config.Config, logger *zap.Logger) (*gin.Engine, func
 	gormDB := datastore.ProvideGormDB(db)
 	userCommandsGateway := datastore.NewUserWriter(gormDB)
 	userQueriesGateway := datastore.NewUserReader(gormDB)
+	bcryptHasher := crypto.ProvideBcryptHasher()
 	awsConfig, err := aws.LoadConfig(cfg)
 	if err != nil {
 		return nil, nil, err
@@ -40,10 +42,10 @@ func InitializeServer(cfg *config.Config, logger *zap.Logger) (*gin.Engine, func
 	client := sns.NewClient(awsConfig)
 	publisher := sns.NewPublisherFromConfig(client, cfg)
 	cloudeventsPublisher := cloudevents.NewPublisher(publisher)
-	createUser := service.NewCreateUser(userCommandsGateway, userQueriesGateway, cloudeventsPublisher)
+	createUser := service.NewCreateUser(userCommandsGateway, userQueriesGateway, bcryptHasher, cloudeventsPublisher)
 	getUser := service.NewGetUser(userQueriesGateway)
 	listUsers := service.NewListUsers(userQueriesGateway)
-	updateUser := service.NewUpdateUser(userCommandsGateway, userQueriesGateway, cloudeventsPublisher)
+	updateUser := service.NewUpdateUser(userCommandsGateway, userQueriesGateway, bcryptHasher, cloudeventsPublisher)
 	deleteUser := service.NewDeleteUser(userCommandsGateway, userQueriesGateway, cloudeventsPublisher)
 	handler := server.NewHandler(createUser, getUser, listUsers, updateUser, deleteUser)
 	healthHandler := health.NewHealthHandler()

@@ -14,6 +14,7 @@ give every test its own Postgres database.
 - **CQRS ports.** Separate query and command gateways per aggregate.
 - **Two binaries.** `cmd/server` (Gin HTTP API) and `cmd/subscriber` (SQS long-poll consumer), both with graceful shutdown.
 - **Domain events.** CloudEvents published to SNS and routed by type in the subscriber.
+- **Secure defaults.** Passwords are hashed with bcrypt behind a `PasswordHasher` port; the HTTP server sets a header read timeout.
 - **[Wire](https://github.com/google/wire) dependency injection.** Generated, no reflection; a separate injector for tests.
 - **Testing.** Table-driven unit tests with gomock and go-cmp, plus integration tests on per-test Postgres clones (`CREATE DATABASE … TEMPLATE`).
 - **Local stack.** Postgres and LocalStack via Docker Compose, with the topic, queue and bucket created on startup.

@@ -32,6 +32,7 @@ func Test_updateUser_Execute(t *testing.T) {
 	type fields struct {
 		mockCommands  *mockgateway.MockUserCommandsGateway
 		mockQueries   *mockgateway.MockUserQueriesGateway
+		mockHasher    *mockgateway.MockPasswordHasher
 		mockPublisher *mockgateway.MockEventPublisher
 	}
 	type args struct {
@@ -50,10 +51,11 @@ func Test_updateUser_Execute(t *testing.T) {
 			prepare: func(a *args, f *fields) {
 				gomock.InOrder(
 					f.mockQueries.EXPECT().Get(a.ctx, userID).Return(existing, nil),
+					f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil),
 					f.mockCommands.EXPECT().
 						Update(a.ctx, gomock.Any()).
 						DoAndReturn(func(_ context.Context, u *entity.User) error {
-							want := &entity.User{ID: userID, Name: in.Name, Email: in.Email, Password: in.Password}
+							want := &entity.User{ID: userID, Name: in.Name, Email: in.Email, PasswordHash: fakeHash}
 							if diff := cmp.Diff(want, u, ignoreTimestamps); diff != "" {
 								t.Errorf("Update() user mismatch (-want +got):\n%s", diff)
 							}
@@ -83,10 +85,27 @@ func Test_updateUser_Execute(t *testing.T) {
 		"Update returns error": {
 			prepare: func(a *args, f *fields) {
 				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(existing, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
 				f.mockCommands.EXPECT().Update(a.ctx, gomock.Any()).Return(errDB).Times(1)
 			},
 			args:        args{ctx: context.Background(), in: in},
 			wantErrCode: "INTERNAL",
+		},
+		"Hash returns error": {
+			prepare: func(a *args, f *fields) {
+				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(existing, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return("", errors.New("hash password: boom")).Times(1)
+			},
+			args:        args{ctx: context.Background(), in: in},
+			wantErrCode: "INTERNAL",
+		},
+		"Hash rejects password as too long": {
+			prepare: func(a *args, f *fields) {
+				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(existing, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return("", model.ErrPasswordTooLong).Times(1)
+			},
+			args:        args{ctx: context.Background(), in: in},
+			wantErrCode: "INVALID_INPUT",
 		},
 	}
 
@@ -98,13 +117,14 @@ func Test_updateUser_Execute(t *testing.T) {
 			f := &fields{
 				mockCommands:  mockgateway.NewMockUserCommandsGateway(ctrl),
 				mockQueries:   mockgateway.NewMockUserQueriesGateway(ctrl),
+				mockHasher:    mockgateway.NewMockPasswordHasher(ctrl),
 				mockPublisher: mockgateway.NewMockEventPublisher(ctrl),
 			}
 			if tt.prepare != nil {
 				tt.prepare(&tt.args, f)
 			}
 
-			uc := NewUpdateUser(f.mockCommands, f.mockQueries, f.mockPublisher)
+			uc := NewUpdateUser(f.mockCommands, f.mockQueries, f.mockHasher, f.mockPublisher)
 			actual, err := uc.Execute(tt.args.ctx, tt.args.in)
 
 			assertDomainErrorCode(t, err, tt.wantErrCode)

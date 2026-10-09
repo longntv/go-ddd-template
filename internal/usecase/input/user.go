@@ -8,7 +8,7 @@ import (
 type CreateUser struct {
 	Name     string `validate:"required,min=1,max=255"`
 	Email    string `validate:"required,email,max=255"`
-	Password string `validate:"required,min=8"`
+	Password string `validate:"required,min=8,max=72"`
 }
 
 // GetUser holds the input for getting a user.
@@ -27,7 +27,7 @@ type UpdateUser struct {
 	ID       entity.UserID `validate:"required"`
 	Name     string        `validate:"required,min=1,max=255"`
 	Email    string        `validate:"required,email,max=255"`
-	Password string        `validate:"required,min=8"`
+	Password string        `validate:"required,min=8,max=72"`
 }
 
 // DeleteUser holds the input for deleting a user.

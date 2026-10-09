@@ -17,11 +17,13 @@ import (
 func NewUpdateUser(
 	userCommandsGateway gateway.UserCommandsGateway,
 	userQueriesGateway gateway.UserQueriesGateway,
+	passwordHasher gateway.PasswordHasher,
 	eventPublisher gateway.EventPublisher,
 ) usecase.UpdateUser {
 	return &updateUser{
 		userCommandsGateway: userCommandsGateway,
 		userQueriesGateway:  userQueriesGateway,
+		passwordHasher:      passwordHasher,
 		eventPublisher:      eventPublisher,
 	}
 }
@@ -30,6 +32,7 @@ func NewUpdateUser(
 type updateUser struct {
 	userCommandsGateway gateway.UserCommandsGateway
 	userQueriesGateway  gateway.UserQueriesGateway
+	passwordHasher      gateway.PasswordHasher
 	eventPublisher      gateway.EventPublisher
 }
 
@@ -43,14 +46,18 @@ func (s *updateUser) Execute(ctx context.Context, in *input.UpdateUser) (*output
 		return nil, model.NewDomainError("INTERNAL", "failed to get user", err)
 	}
 
-	// Update user entity
-	userEntity := &entity.User{
-		ID:       in.ID,
-		Name:     in.Name,
-		Email:    in.Email,
-		Password: in.Password,
+	// Hash the new password; the plain text never leaves this function.
+	passwordHash, err := s.passwordHasher.Hash(in.Password)
+	if err != nil {
+		if errors.Is(err, model.ErrPasswordTooLong) {
+			return nil, model.NewDomainError("INVALID_INPUT", "password must be at most 72 bytes", err)
+		}
+		return nil, model.NewDomainError("INTERNAL", "failed to hash password", err)
 	}
-	userEntity.Update(in.Name, in.Email, in.Password)
+
+	// Update user entity
+	userEntity := &entity.User{ID: in.ID}
+	userEntity.Update(in.Name, in.Email, passwordHash)
 
 	// Update user
 	if err := s.userCommandsGateway.Update(ctx, userEntity); err != nil {

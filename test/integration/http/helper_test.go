@@ -10,8 +10,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
+	"github.com/longntv/go-ddd-template/internal/infrastructure/crypto"
 	"github.com/longntv/go-ddd-template/internal/testutil"
 	"github.com/longntv/go-ddd-template/test/integration/registry"
 
@@ -19,7 +21,8 @@ import (
 )
 
 // HTTPTestHelper runs requests against the real router, services and
-// datastore backed by a fresh database. Only the event publisher is mocked.
+// datastore backed by a fresh database. Passwords are hashed with real bcrypt
+// at minimum cost; only the event publisher is mocked.
 type HTTPTestHelper struct {
 	router        *gin.Engine
 	gormDB        *gorm.DB
@@ -33,7 +36,7 @@ func NewHTTPTestHelper(t *testing.T) *HTTPTestHelper {
 	gormDB, _ := testutil.InitDB(t)
 	mockPublisher := mockgateway.NewMockEventPublisher(gomock.NewController(t))
 
-	router, err := registry.InitializeServer(gormDB, mockPublisher)
+	router, err := registry.InitializeServer(gormDB, crypto.NewBcryptHasher(bcrypt.MinCost), mockPublisher)
 	if err != nil {
 		t.Fatalf("initialize server: %v", err)
 	}
@@ -71,6 +74,17 @@ func (h *HTTPTestHelper) CountUsers(t *testing.T) int64 {
 		t.Fatalf("count users: %v", err)
 	}
 	return count
+}
+
+// PasswordHash returns the stored password hash of the user with the given email.
+func (h *HTTPTestHelper) PasswordHash(t *testing.T, email string) string {
+	t.Helper()
+
+	var hash string
+	if err := h.gormDB.Table("users").Select("password_hash").Where("email = ?", email).Scan(&hash).Error; err != nil {
+		t.Fatalf("read password hash: %v", err)
+	}
+	return hash
 }
 
 // expectStatus fails the test when got differs from want.

@@ -20,10 +20,11 @@ import (
 // InitializeServer builds the real HTTP router for integration tests.
 //
 // Unlike internal/registry, external dependencies are parameters: the test
-// passes its own database and a mock event publisher, so the whole stack
+// passes its own database, a fast password hasher and a mock event publisher, so the whole stack
 // from router to Postgres runs for real without AWS.
 func InitializeServer(
 	gormDB *gorm.DB,
+	passwordHasher gateway.PasswordHasher,
 	eventPublisher gateway.EventPublisher,
 ) (*gin.Engine, error) {
 	wire.Build(
