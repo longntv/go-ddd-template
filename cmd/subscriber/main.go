@@ -30,7 +30,6 @@ var (
 	BuildTime = "unknown"
 )
 
-//go:generate go run github.com/google/wire/cmd/wire@latest
 func main() {
 	// Load configuration.
 	cfg := config.Load()
@@ -41,7 +40,8 @@ func main() {
 		log.Fatal("failed to create logger", zap.Error(err))
 	}
 	log.SetLogger(logger)
-	defer logger.Sync()
+	// Sync can fail on stderr/stdout (EINVAL on some OSes); nothing useful to do on exit.
+	defer func() { _ = logger.Sync() }()
 
 	logger.Info("starting subscriber",
 		zap.String("version", Version),

@@ -24,6 +24,10 @@ const (
 	// gracefulShutdownTimeout is the maximum time to wait for graceful
 	// shutdown.
 	gracefulShutdownTimeout = 30 * time.Second
+
+	// readHeaderTimeout bounds how long a client may take to send request
+	// headers, protecting against slow-header (Slowloris) attacks.
+	readHeaderTimeout = 10 * time.Second
 )
 
 var (
@@ -33,7 +37,6 @@ var (
 	BuildTime = "unknown"
 )
 
-//go:generate go run github.com/google/wire/cmd/wire@latest
 func main() {
 	// Load configuration.
 	cfg := config.Load()
@@ -44,7 +47,8 @@ func main() {
 		log.Fatal("failed to create logger", zap.Error(err))
 	}
 	log.SetLogger(logger)
-	defer logger.Sync()
+	// Sync can fail on stderr/stdout (EINVAL on some OSes); nothing useful to do on exit.
+	defer func() { _ = logger.Sync() }()
 
 	logger.Info("starting server",
 		zap.String("version", Version),
@@ -69,8 +73,9 @@ func main() {
 
 	// Run HTTP server.
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%s", cfg.App.Port),
-		Handler: router,
+		Addr:              fmt.Sprintf(":%s", cfg.App.Port),
+		Handler:           router,
+		ReadHeaderTimeout: readHeaderTimeout,
 		BaseContext: func(net.Listener) context.Context {
 			return egCtx
 		},

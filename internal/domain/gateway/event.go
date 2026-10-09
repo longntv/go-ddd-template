@@ -6,7 +6,7 @@ import (
 	"github.com/longntv/go-ddd-template/internal/domain/event"
 )
 
-//go:generate go run go.uber.org/mock/mockgen@latest -destination=mock/event.go -source=event.go
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=mock/event.go -source=event.go
 
 // EventPublisher defines the interface for publishing domain events.
 type EventPublisher interface {

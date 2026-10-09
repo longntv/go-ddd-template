@@ -1,5 +1,6 @@
 # go-ddd-template
 
+[![CI](https://github.com/longntv/go-ddd-template/actions/workflows/ci.yml/badge.svg)](https://github.com/longntv/go-ddd-template/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/go-1.23-00ADD8?logo=go)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/longntv/go-ddd-template)](https://goreportcard.com/report/github.com/longntv/go-ddd-template)

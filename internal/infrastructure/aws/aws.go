@@ -31,15 +31,10 @@ func LoadConfig(cfg *appconfig.Config) (aws.Config, error) {
 		config.WithRegion(cfg.AWS.Region),
 	}
 
-	// For local development with LocalStack
+	// For local development with LocalStack: every service client sends
+	// requests to this endpoint instead of the AWS one.
 	if cfg.AWS.EndpointURL != "" {
-		customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-			return aws.Endpoint{
-				URL:           cfg.AWS.EndpointURL,
-				SigningRegion: cfg.AWS.Region,
-			}, nil
-		})
-		opts = append(opts, config.WithEndpointResolverWithOptions(customResolver))
+		opts = append(opts, config.WithBaseEndpoint(cfg.AWS.EndpointURL))
 	}
 
 	awsConfig, err := config.LoadDefaultConfig(context.TODO(), opts...)

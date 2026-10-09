@@ -6,8 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/longntv/go-ddd-template/internal/domain/entity"
-	"github.com/longntv/go-ddd-template/internal/usecase"
 	"github.com/longntv/go-ddd-template/internal/usecase/input"
 )
 
@@ -21,7 +19,7 @@ func (h *Handler) Get(c *gin.Context) {
 	}
 
 	input := &input.GetUser{
-		ID: entity.UserID(id),
+		ID: id,
 	}
 
 	output, err := h.getUser.Execute(c.Request.Context(), input)
@@ -37,9 +35,4 @@ func (h *Handler) Get(c *gin.Context) {
 		"created_at": output.User.CreatedAt,
 		"updated_at": output.User.UpdatedAt,
 	})
-}
-
-// newUserGetHandler creates a new GetUser handler for Wire.
-func newUserGetHandler(getUser usecase.GetUser) *Handler {
-	return &Handler{getUser: getUser}
 }

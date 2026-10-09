@@ -35,7 +35,7 @@ func (e *UserEntity) BeforeCreate(tx *gorm.DB) error {
 // ToDomain converts UserEntity to domain entity.User.
 func (e *UserEntity) ToDomain() *entity.User {
 	return &entity.User{
-		ID:        entity.UserID(e.ID),
+		ID:        e.ID,
 		Name:      e.Name,
 		Email:     e.Email,
 		Password:  e.Password,

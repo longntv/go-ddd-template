@@ -87,7 +87,7 @@ func (db *TemplateDB) Init(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("open template conn: %w", err)
 	}
-	defer tmplConn.Close()
+	defer func() { _ = tmplConn.Close() }()
 
 	if err := applyMigrations(ctx, tmplConn, db.cfg.MigrationsDir); err != nil {
 		return fmt.Errorf("apply migrations: %w", err)

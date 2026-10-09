@@ -5,7 +5,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/longntv/go-ddd-template/internal/usecase"
 	"github.com/longntv/go-ddd-template/internal/usecase/input"
 )
 
@@ -40,9 +39,4 @@ func (h *Handler) Create(c *gin.Context) {
 		"created_at": output.User.CreatedAt,
 		"updated_at": output.User.UpdatedAt,
 	})
-}
-
-// newUserCreateHandler creates a new CreateUser handler for Wire.
-func newUserCreateHandler(createUser usecase.CreateUser) *Handler {
-	return &Handler{createUser: createUser}
 }

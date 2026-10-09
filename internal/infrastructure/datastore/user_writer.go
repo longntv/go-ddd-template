@@ -3,7 +3,6 @@ package datastore
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
@@ -23,7 +22,7 @@ func NewUserWriter(db *gorm.DB) gateway.UserCommandsGateway {
 // Create creates a new user.
 func (w *userWriter) Create(ctx context.Context, user *entity.User) error {
 	userEntity := &UserEntity{
-		ID:       uuid.UUID(user.ID),
+		ID:       user.ID,
 		Name:     user.Name,
 		Email:    user.Email,
 		Password: user.Password,
