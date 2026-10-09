@@ -1,0 +1,41 @@
+package http
+
+import (
+	"github.com/gin-gonic/gin"
+
+	"go-ddd-template/internal/handler/health"
+	"go-ddd-template/internal/handler/http/middleware"
+	"go-ddd-template/internal/handler/http/server"
+)
+
+// Router sets up the HTTP routes.
+func Router(
+	userHandler *server.Handler,
+	healthHandler *health.HealthHandler,
+) *gin.Engine {
+	r := gin.New()
+
+	// Middleware
+	r.Use(gin.Recovery())
+	r.Use(middleware.Logger())
+	r.Use(middleware.CORS())
+
+	// Health check
+	r.GET("/health", healthHandler.Handle)
+
+	// API v1
+	v1 := r.Group("/api/v1")
+	{
+		// Users
+		users := v1.Group("/users")
+		{
+			users.POST("", userHandler.Create)
+			users.GET("", userHandler.List)
+			users.GET("/:id", userHandler.Get)
+			users.PUT("/:id", userHandler.Update)
+			users.DELETE("/:id", userHandler.Delete)
+		}
+	}
+
+	return r
+}

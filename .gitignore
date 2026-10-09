@@ -1,0 +1,21 @@
+# Build output
+/bin/
+/dist/
+
+# Test and coverage output
+coverage.out
+coverage.html
+*.test
+
+# Local environment
+.env
+.env.local
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Claude Code local-only settings
+.claude/settings.local.json
