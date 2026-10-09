@@ -10,7 +10,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"go-ddd-template/internal/testutil"
+	"github.com/longntv/go-ddd-template/internal/testutil"
 )
 
 // readDB is shared by *_reader_test.go. Read queries don't affect each other,

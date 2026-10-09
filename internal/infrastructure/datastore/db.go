@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	appconfig "go-ddd-template/internal/config"
+	appconfig "github.com/longntv/go-ddd-template/internal/config"
 )
 
 // DB holds the GORM database connection.

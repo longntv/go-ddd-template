@@ -13,13 +13,13 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
 
-	"go-ddd-template/internal/domain/entity"
-	"go-ddd-template/internal/domain/model"
-	"go-ddd-template/internal/handler/http/server"
-	"go-ddd-template/internal/usecase/input"
-	"go-ddd-template/internal/usecase/output"
+	"github.com/longntv/go-ddd-template/internal/domain/entity"
+	"github.com/longntv/go-ddd-template/internal/domain/model"
+	"github.com/longntv/go-ddd-template/internal/handler/http/server"
+	"github.com/longntv/go-ddd-template/internal/usecase/input"
+	"github.com/longntv/go-ddd-template/internal/usecase/output"
 
-	mockusecase "go-ddd-template/internal/usecase/mock"
+	mockusecase "github.com/longntv/go-ddd-template/internal/usecase/mock"
 )
 
 func init() {

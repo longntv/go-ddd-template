@@ -1,4 +1,4 @@
-module go-ddd-template
+module github.com/longntv/go-ddd-template
 
 go 1.23.0
 

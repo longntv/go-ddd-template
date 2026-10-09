@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -19,18 +17,18 @@ services:
       retries: 5
 
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:3.8
     container_name: go-ddd-template-localstack
     environment:
-      SERVICES: sns,sqs,s3,bedrock
+      SERVICES: sns,sqs,s3
       AWS_DEFAULT_REGION: ap-northeast-1
-      EDGE_PORT: 4566
     ports:
       - "4566:4566"
     volumes:
       - localstack_data:/var/lib/localstack
+      - ./localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:4566/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/init/ready | grep -Eq '\"completed\": ?true' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

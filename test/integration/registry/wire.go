@@ -7,12 +7,12 @@ import (
 	"github.com/google/wire"
 	"gorm.io/gorm"
 
-	"go-ddd-template/internal/domain/gateway"
-	"go-ddd-template/internal/handler/health"
-	"go-ddd-template/internal/handler/http"
-	"go-ddd-template/internal/handler/http/server"
-	"go-ddd-template/internal/infrastructure/datastore"
-	"go-ddd-template/internal/service"
+	"github.com/longntv/go-ddd-template/internal/domain/gateway"
+	"github.com/longntv/go-ddd-template/internal/handler/health"
+	"github.com/longntv/go-ddd-template/internal/handler/http"
+	"github.com/longntv/go-ddd-template/internal/handler/http/server"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/datastore"
+	"github.com/longntv/go-ddd-template/internal/service"
 )
 
 //go:generate go run github.com/google/wire/cmd/wire@v0.6.0

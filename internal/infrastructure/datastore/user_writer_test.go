@@ -12,10 +12,10 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"go-ddd-template/internal/domain/entity"
-	"go-ddd-template/internal/domain/model"
-	"go-ddd-template/internal/infrastructure/datastore"
-	"go-ddd-template/internal/testutil"
+	"github.com/longntv/go-ddd-template/internal/domain/entity"
+	"github.com/longntv/go-ddd-template/internal/domain/model"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/datastore"
+	"github.com/longntv/go-ddd-template/internal/testutil"
 )
 
 // Writer tests get a fresh database per test case (testutil.InitDB) so writes

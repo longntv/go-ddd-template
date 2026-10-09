@@ -1,7 +1,7 @@
 package input
 
 import (
-	"go-ddd-template/internal/domain/entity"
+	"github.com/longntv/go-ddd-template/internal/domain/entity"
 )
 
 // CreateUser holds the input for creating a user.

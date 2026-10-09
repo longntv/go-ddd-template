@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"go-ddd-template/internal/domain/event"
-	handlercloudevents "go-ddd-template/internal/handler/cloudevents"
-	"go-ddd-template/internal/infrastructure/cloudevents"
+	"github.com/longntv/go-ddd-template/internal/domain/event"
+	handlercloudevents "github.com/longntv/go-ddd-template/internal/handler/cloudevents"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/cloudevents"
 )
 
 // TestProvideConfiguredMux_RoutesDomainEvents guards the contract between the

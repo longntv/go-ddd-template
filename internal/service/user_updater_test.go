@@ -9,13 +9,13 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
 
-	"go-ddd-template/internal/domain/entity"
-	"go-ddd-template/internal/domain/event"
-	"go-ddd-template/internal/domain/model"
-	"go-ddd-template/internal/usecase/input"
-	"go-ddd-template/internal/usecase/output"
+	"github.com/longntv/go-ddd-template/internal/domain/entity"
+	"github.com/longntv/go-ddd-template/internal/domain/event"
+	"github.com/longntv/go-ddd-template/internal/domain/model"
+	"github.com/longntv/go-ddd-template/internal/usecase/input"
+	"github.com/longntv/go-ddd-template/internal/usecase/output"
 
-	mockgateway "go-ddd-template/internal/domain/gateway/mock"
+	mockgateway "github.com/longntv/go-ddd-template/internal/domain/gateway/mock"
 )
 
 func Test_updateUser_Execute(t *testing.T) {

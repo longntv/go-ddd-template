@@ -11,9 +11,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
-	"go-ddd-template/internal/domain/entity"
-	"go-ddd-template/internal/domain/model"
-	"go-ddd-template/internal/infrastructure/datastore"
+	"github.com/longntv/go-ddd-template/internal/domain/entity"
+	"github.com/longntv/go-ddd-template/internal/domain/model"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/datastore"
 )
 
 // Users from testdata/fixtures/users.yml.

@@ -11,9 +11,9 @@ package mock_gateway
 
 import (
 	context "context"
-	entity "go-ddd-template/internal/domain/entity"
 	reflect "reflect"
 
+	entity "github.com/longntv/go-ddd-template/internal/domain/entity"
 	gomock "go.uber.org/mock/gomock"
 )
 
