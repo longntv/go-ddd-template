@@ -6,10 +6,10 @@ import (
 	"github.com/cloudevents/sdk-go/v2/event"
 	"github.com/google/wire"
 
-	domainevent "go-ddd-template/internal/domain/event"
-	"go-ddd-template/internal/domain/gateway"
-	handlercloudevents "go-ddd-template/internal/handler/cloudevents"
-	"go-ddd-template/internal/infrastructure/cloudevents/handler"
+	domainevent "github.com/longntv/go-ddd-template/internal/domain/event"
+	"github.com/longntv/go-ddd-template/internal/domain/gateway"
+	handlercloudevents "github.com/longntv/go-ddd-template/internal/handler/cloudevents"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/cloudevents/handler"
 )
 
 // WireSet holds the Wire providers for CloudEvents infrastructure.

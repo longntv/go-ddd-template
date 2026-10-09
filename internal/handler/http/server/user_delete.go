@@ -6,9 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"go-ddd-template/internal/domain/entity"
-	"go-ddd-template/internal/usecase"
-	"go-ddd-template/internal/usecase/input"
+	"github.com/longntv/go-ddd-template/internal/domain/entity"
+	"github.com/longntv/go-ddd-template/internal/usecase"
+	"github.com/longntv/go-ddd-template/internal/usecase/input"
 )
 
 // Delete handles DELETE /users/:id

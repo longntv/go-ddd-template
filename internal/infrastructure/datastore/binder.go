@@ -6,7 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"go-ddd-template/internal/domain/gateway"
+	"github.com/longntv/go-ddd-template/internal/domain/gateway"
 )
 
 // binder implements the gateway.Binder interface,

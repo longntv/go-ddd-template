@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"go-ddd-template/internal/domain/entity"
+	"github.com/longntv/go-ddd-template/internal/domain/entity"
 )
 
 func TestNewUser(t *testing.T) {

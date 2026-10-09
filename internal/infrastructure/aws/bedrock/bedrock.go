@@ -5,7 +5,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/google/wire"
 
-	appconfig "go-ddd-template/internal/config"
+	appconfig "github.com/longntv/go-ddd-template/internal/config"
 )
 
 // WireSet holds the Wire providers for Bedrock.

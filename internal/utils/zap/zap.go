@@ -5,8 +5,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"go-ddd-template/internal/config"
-	"go-ddd-template/internal/utils/log"
+	"github.com/longntv/go-ddd-template/internal/config"
+	"github.com/longntv/go-ddd-template/internal/utils/log"
 )
 
 // WireSet holds the Wire providers for zap logger.

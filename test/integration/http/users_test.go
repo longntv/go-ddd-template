@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
 
-	"go-ddd-template/internal/domain/event"
+	"github.com/longntv/go-ddd-template/internal/domain/event"
 )
 
 const (

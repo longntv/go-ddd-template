@@ -3,7 +3,7 @@ package gateway
 import (
 	"context"
 
-	"go-ddd-template/internal/domain/event"
+	"github.com/longntv/go-ddd-template/internal/domain/event"
 )
 
 //go:generate go run go.uber.org/mock/mockgen@latest -destination=mock/event.go -source=event.go

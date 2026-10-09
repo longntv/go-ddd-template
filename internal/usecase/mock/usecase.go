@@ -11,10 +11,10 @@ package mock_usecase
 
 import (
 	context "context"
-	input "go-ddd-template/internal/usecase/input"
-	output "go-ddd-template/internal/usecase/output"
 	reflect "reflect"
 
+	input "github.com/longntv/go-ddd-template/internal/usecase/input"
+	output "github.com/longntv/go-ddd-template/internal/usecase/output"
 	gomock "go.uber.org/mock/gomock"
 )
 

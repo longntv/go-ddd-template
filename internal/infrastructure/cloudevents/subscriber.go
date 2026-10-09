@@ -10,8 +10,8 @@ import (
 	"github.com/cloudevents/sdk-go/v2/event"
 	"go.uber.org/zap"
 
-	"go-ddd-template/internal/infrastructure/aws/sqs"
-	"go-ddd-template/internal/infrastructure/cloudevents/handler"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/aws/sqs"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/cloudevents/handler"
 )
 
 // Subscriber subscribes to SQS messages and converts them to CloudEvents.

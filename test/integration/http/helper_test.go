@@ -12,10 +12,10 @@ import (
 	"go.uber.org/mock/gomock"
 	"gorm.io/gorm"
 
-	"go-ddd-template/internal/testutil"
-	"go-ddd-template/test/integration/registry"
+	"github.com/longntv/go-ddd-template/internal/testutil"
+	"github.com/longntv/go-ddd-template/test/integration/registry"
 
-	mockgateway "go-ddd-template/internal/domain/gateway/mock"
+	mockgateway "github.com/longntv/go-ddd-template/internal/domain/gateway/mock"
 )
 
 // HTTPTestHelper runs requests against the real router, services and

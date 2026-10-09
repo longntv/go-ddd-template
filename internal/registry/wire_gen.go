@@ -8,17 +8,17 @@ package registry
 
 import (
 	"github.com/gin-gonic/gin"
-	"go-ddd-template/internal/config"
-	cloudevents2 "go-ddd-template/internal/handler/cloudevents"
-	"go-ddd-template/internal/handler/health"
-	"go-ddd-template/internal/handler/http"
-	"go-ddd-template/internal/handler/http/server"
-	"go-ddd-template/internal/infrastructure/aws"
-	"go-ddd-template/internal/infrastructure/aws/sns"
-	"go-ddd-template/internal/infrastructure/aws/sqs"
-	"go-ddd-template/internal/infrastructure/cloudevents"
-	"go-ddd-template/internal/infrastructure/datastore"
-	"go-ddd-template/internal/service"
+	"github.com/longntv/go-ddd-template/internal/config"
+	cloudevents2 "github.com/longntv/go-ddd-template/internal/handler/cloudevents"
+	"github.com/longntv/go-ddd-template/internal/handler/health"
+	"github.com/longntv/go-ddd-template/internal/handler/http"
+	"github.com/longntv/go-ddd-template/internal/handler/http/server"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/aws"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/aws/sns"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/aws/sqs"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/cloudevents"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/datastore"
+	"github.com/longntv/go-ddd-template/internal/service"
 	"go.uber.org/zap"
 )
 

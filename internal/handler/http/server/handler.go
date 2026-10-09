@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 
-	"go-ddd-template/internal/domain/model"
-	"go-ddd-template/internal/usecase"
+	"github.com/longntv/go-ddd-template/internal/domain/model"
+	"github.com/longntv/go-ddd-template/internal/usecase"
 )
 
 // Handler handles user HTTP requests.

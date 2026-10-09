@@ -3,8 +3,8 @@ package usecase
 import (
 	"context"
 
-	"go-ddd-template/internal/usecase/input"
-	"go-ddd-template/internal/usecase/output"
+	"github.com/longntv/go-ddd-template/internal/usecase/input"
+	"github.com/longntv/go-ddd-template/internal/usecase/output"
 )
 
 //go:generate go run go.uber.org/mock/mockgen@latest -destination=mock/usecase.go -source=usecase.go

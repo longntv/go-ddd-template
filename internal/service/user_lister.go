@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 
-	"go-ddd-template/internal/domain/gateway"
-	"go-ddd-template/internal/domain/model"
-	"go-ddd-template/internal/usecase"
-	"go-ddd-template/internal/usecase/input"
-	"go-ddd-template/internal/usecase/output"
+	"github.com/longntv/go-ddd-template/internal/domain/gateway"
+	"github.com/longntv/go-ddd-template/internal/domain/model"
+	"github.com/longntv/go-ddd-template/internal/usecase"
+	"github.com/longntv/go-ddd-template/internal/usecase/input"
+	"github.com/longntv/go-ddd-template/internal/usecase/output"
 )
 
 // NewListUsers creates a new ListUsers use case.

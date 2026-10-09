@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/wire"
 
-	appconfig "go-ddd-template/internal/config"
+	appconfig "github.com/longntv/go-ddd-template/internal/config"
 )
 
 // Subscriber receives messages from SQS.

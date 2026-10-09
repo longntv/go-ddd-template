@@ -6,8 +6,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/sns/types"
 
-	"go-ddd-template/internal/domain/event"
-	"go-ddd-template/internal/infrastructure/aws/sns"
+	"github.com/longntv/go-ddd-template/internal/domain/event"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/aws/sns"
 )
 
 // Publisher publishes domain events to SNS.

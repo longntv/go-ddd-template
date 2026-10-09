@@ -3,7 +3,7 @@ package gateway
 import (
 	"context"
 
-	"go-ddd-template/internal/domain/entity"
+	"github.com/longntv/go-ddd-template/internal/domain/entity"
 )
 
 //go:generate go run go.uber.org/mock/mockgen@latest -destination=mock/user.go -source=user.go

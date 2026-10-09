@@ -1,7 +1,7 @@
 package output
 
 import (
-	"go-ddd-template/internal/domain/entity"
+	"github.com/longntv/go-ddd-template/internal/domain/entity"
 )
 
 // CreateUser is the output for creating a user.

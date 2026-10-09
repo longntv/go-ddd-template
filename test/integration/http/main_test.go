@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"go-ddd-template/internal/testutil"
+	"github.com/longntv/go-ddd-template/internal/testutil"
 )
 
 func TestMain(m *testing.M) {

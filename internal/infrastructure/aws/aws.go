@@ -7,12 +7,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/google/wire"
 
-	"go-ddd-template/internal/infrastructure/aws/bedrock"
-	"go-ddd-template/internal/infrastructure/aws/s3"
-	"go-ddd-template/internal/infrastructure/aws/sns"
-	"go-ddd-template/internal/infrastructure/aws/sqs"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/aws/bedrock"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/aws/s3"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/aws/sns"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/aws/sqs"
 
-	appconfig "go-ddd-template/internal/config"
+	appconfig "github.com/longntv/go-ddd-template/internal/config"
 )
 
 // WireSet holds the Wire providers for AWS infrastructure.

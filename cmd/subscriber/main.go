@@ -11,10 +11,10 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
-	"go-ddd-template/internal/config"
-	"go-ddd-template/internal/registry"
-	"go-ddd-template/internal/utils/log"
-	zaputil "go-ddd-template/internal/utils/zap"
+	"github.com/longntv/go-ddd-template/internal/config"
+	"github.com/longntv/go-ddd-template/internal/registry"
+	"github.com/longntv/go-ddd-template/internal/utils/log"
+	zaputil "github.com/longntv/go-ddd-template/internal/utils/zap"
 )
 
 const (

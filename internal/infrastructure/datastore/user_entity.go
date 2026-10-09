@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"go-ddd-template/internal/domain/entity"
+	"github.com/longntv/go-ddd-template/internal/domain/entity"
 )
 
 // UserEntity represents the users table.

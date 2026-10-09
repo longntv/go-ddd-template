@@ -2,12 +2,13 @@ package datastore
 
 import (
 	"context"
+	"errors"
 
 	"gorm.io/gorm"
 
-	"go-ddd-template/internal/domain/entity"
-	"go-ddd-template/internal/domain/gateway"
-	"go-ddd-template/internal/domain/model"
+	"github.com/longntv/go-ddd-template/internal/domain/entity"
+	"github.com/longntv/go-ddd-template/internal/domain/gateway"
+	"github.com/longntv/go-ddd-template/internal/domain/model"
 )
 
 // userReader implements gateway.UserQueriesGateway interface.
@@ -25,7 +26,7 @@ func (r *userReader) Get(ctx context.Context, id entity.UserID) (*entity.User, e
 	var userEntity UserEntity
 	err := r.db.WithContext(ctx).Where("id = ?", id).First(&userEntity).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, model.ErrUserNotFound
 		}
 		return nil, err
@@ -38,7 +39,7 @@ func (r *userReader) GetByEmail(ctx context.Context, email string) (*entity.User
 	var userEntity UserEntity
 	err := r.db.WithContext(ctx).Where("email = ?", email).First(&userEntity).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, model.ErrUserNotFound
 		}
 		return nil, err

@@ -7,15 +7,15 @@ import (
 	"github.com/google/wire"
 	"go.uber.org/zap"
 
-	"go-ddd-template/internal/config"
-	handlercloudevents "go-ddd-template/internal/handler/cloudevents"
-	"go-ddd-template/internal/handler/health"
-	"go-ddd-template/internal/handler/http"
-	"go-ddd-template/internal/handler/http/server"
-	"go-ddd-template/internal/infrastructure/aws"
-	infracloudevents "go-ddd-template/internal/infrastructure/cloudevents"
-	"go-ddd-template/internal/infrastructure/datastore"
-	"go-ddd-template/internal/service"
+	"github.com/longntv/go-ddd-template/internal/config"
+	handlercloudevents "github.com/longntv/go-ddd-template/internal/handler/cloudevents"
+	"github.com/longntv/go-ddd-template/internal/handler/health"
+	"github.com/longntv/go-ddd-template/internal/handler/http"
+	"github.com/longntv/go-ddd-template/internal/handler/http/server"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/aws"
+	infracloudevents "github.com/longntv/go-ddd-template/internal/infrastructure/cloudevents"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/datastore"
+	"github.com/longntv/go-ddd-template/internal/service"
 )
 
 //go:generate go run github.com/google/wire/cmd/wire@latest

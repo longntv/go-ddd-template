@@ -3,9 +3,9 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 
-	"go-ddd-template/internal/handler/health"
-	"go-ddd-template/internal/handler/http/middleware"
-	"go-ddd-template/internal/handler/http/server"
+	"github.com/longntv/go-ddd-template/internal/handler/health"
+	"github.com/longntv/go-ddd-template/internal/handler/http/middleware"
+	"github.com/longntv/go-ddd-template/internal/handler/http/server"
 )
 
 // Router sets up the HTTP routes.

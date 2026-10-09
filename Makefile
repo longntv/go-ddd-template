@@ -98,12 +98,10 @@ clean:
 # Install tools
 tools/install:
 	$(GO) install github.com/google/wire/cmd/wire@v0.6.0
-	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	$(GO) install github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+	$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.3.0
+	$(GO) install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.1
 
 .PHONY: generate
 generate:
 	go generate ./...
-	sed -i '' '/\/\/ +build !wireinject/d' ./internal/registry/wire_gen.go
-	test -f ./test/integration/registry/wire_gen.go && sed -i '' '/\/\/ +build !wireinject/d' ./test/integration/registry/wire_gen.go || true
 	go fmt ./...

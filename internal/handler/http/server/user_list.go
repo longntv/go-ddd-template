@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"go-ddd-template/internal/usecase"
-	"go-ddd-template/internal/usecase/input"
+	"github.com/longntv/go-ddd-template/internal/usecase"
+	"github.com/longntv/go-ddd-template/internal/usecase/input"
 )
 
 // List handles GET /users
