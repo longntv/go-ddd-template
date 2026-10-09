@@ -6,8 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/longntv/go-ddd-template/internal/domain/entity"
-	"github.com/longntv/go-ddd-template/internal/usecase"
 	"github.com/longntv/go-ddd-template/internal/usecase/input"
 )
 
@@ -21,7 +19,7 @@ func (h *Handler) Delete(c *gin.Context) {
 	}
 
 	input := &input.DeleteUser{
-		ID: entity.UserID(id),
+		ID: id,
 	}
 
 	if err := h.deleteUser.Execute(c.Request.Context(), input); err != nil {
@@ -30,9 +28,4 @@ func (h *Handler) Delete(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
-}
-
-// newUserDeleteHandler creates a new DeleteUser handler for Wire.
-func newUserDeleteHandler(deleteUser usecase.DeleteUser) *Handler {
-	return &Handler{deleteUser: deleteUser}
 }

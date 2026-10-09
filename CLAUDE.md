@@ -8,7 +8,8 @@ Go 1.23 service: DDD layers + CQRS ports, Gin HTTP API (`cmd/server`), SQS Cloud
 - `make docker/up` then `make test/integration` — integration tests against Postgres
   (if 5432 is busy: run Postgres elsewhere and set `DB_PORT`).
 - `make generate` — Wire injectors + mocks + gofmt. Run after changing any constructor, WireSet or port interface.
-- `go vet ./... && go vet -tags=integration ./...` — integration files only compile with the tag.
+- `make lint` — golangci-lint v2.3.0 with `.golangci.yml` (also lints integration-tagged files).
+- CI (`.github/workflows/ci.yml`) runs lint, a `make generate` drift check, unit and integration tests.
 
 ## Rules and skills
 - Layer, naming and wiring rules: `.claude/rules/architecture.md`.

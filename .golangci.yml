@@ -1,0 +1,36 @@
+# golangci-lint v2 configuration. CI pins the same version as `make tools/install`.
+version: "2"
+
+run:
+  # Lint integration tests too; they only compile with this tag.
+  build-tags:
+    - integration
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gocritic
+    - gosec
+    - misspell
+    - nolintlint
+    - unconvert
+    - usestdlibvars
+  exclusions:
+    generated: lax
+    rules:
+      # Test-only helpers: read fixture/migration files from the repo and build
+      # SQL from table and column names they control.
+      - path: internal/testutil/
+        linters: [gosec]
+        text: "G201|G304"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/longntv/go-ddd-template

@@ -20,8 +20,8 @@ type SNSConfig struct {
 // SQSConfig holds the SQS configuration.
 type SQSConfig struct {
 	QueueURL        string
-	MaxMessages     int
-	WaitTimeSeconds int
+	MaxMessages     int32
+	WaitTimeSeconds int32
 }
 
 // BedrockConfig holds the Bedrock configuration.

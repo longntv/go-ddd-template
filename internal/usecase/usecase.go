@@ -7,7 +7,7 @@ import (
 	"github.com/longntv/go-ddd-template/internal/usecase/output"
 )
 
-//go:generate go run go.uber.org/mock/mockgen@latest -destination=mock/usecase.go -source=usecase.go
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=mock/usecase.go -source=usecase.go
 
 // CreateUser defines the use case for creating a user.
 type CreateUser interface {

@@ -6,8 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/longntv/go-ddd-template/internal/domain/entity"
-	"github.com/longntv/go-ddd-template/internal/usecase"
 	"github.com/longntv/go-ddd-template/internal/usecase/input"
 )
 
@@ -31,7 +29,7 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 
 	input := &input.UpdateUser{
-		ID:       entity.UserID(id),
+		ID:       id,
 		Name:     in.Name,
 		Email:    in.Email,
 		Password: in.Password,
@@ -50,9 +48,4 @@ func (h *Handler) Update(c *gin.Context) {
 		"created_at": output.User.CreatedAt,
 		"updated_at": output.User.UpdatedAt,
 	})
-}
-
-// newUserUpdateHandler creates a new UpdateUser handler for Wire.
-func newUserUpdateHandler(updateUser usecase.UpdateUser) *Handler {
-	return &Handler{updateUser: updateUser}
 }

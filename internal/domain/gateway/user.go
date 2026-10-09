@@ -6,7 +6,7 @@ import (
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
 )
 
-//go:generate go run go.uber.org/mock/mockgen@latest -destination=mock/user.go -source=user.go
+//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=mock/user.go -source=user.go
 
 // Binder defines the interface for binding database to context.
 type Binder interface {

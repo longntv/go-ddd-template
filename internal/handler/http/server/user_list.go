@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/longntv/go-ddd-template/internal/usecase"
 	"github.com/longntv/go-ddd-template/internal/usecase/input"
 )
 
@@ -53,9 +52,4 @@ func (h *Handler) List(c *gin.Context) {
 		"page":        output.Page,
 		"limit":       output.Limit,
 	})
-}
-
-// newUserListHandler creates a new ListUsers handler for Wire.
-func newUserListHandler(listUsers usecase.ListUsers) *Handler {
-	return &Handler{listUsers: listUsers}
 }

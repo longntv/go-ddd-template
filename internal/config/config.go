@@ -49,8 +49,8 @@ func Load() *Config {
 		},
 		SQS: SQSConfig{
 			QueueURL:        getEnv("SQS_QUEUE_URL", ""),
-			MaxMessages:     getEnvAsInt("SQS_MAX_MESSAGES", 10),
-			WaitTimeSeconds: getEnvAsInt("SQS_WAIT_TIME_SECONDS", 20),
+			MaxMessages:     clampInt32(getEnvAsInt32("SQS_MAX_MESSAGES", 10), 1, 10),
+			WaitTimeSeconds: clampInt32(getEnvAsInt32("SQS_WAIT_TIME_SECONDS", 20), 0, 20),
 		},
 		Bedrock: BedrockConfig{
 			Region:  getEnv("BEDROCK_REGION", "ap-northeast-1"),
@@ -81,6 +81,21 @@ func getEnvAsInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+func getEnvAsInt32(key string, defaultValue int32) int32 {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.ParseInt(value, 10, 32); err == nil {
+			return int32(intVal)
+		}
+	}
+	return defaultValue
+}
+
+// clampInt32 limits v to [minVal, maxVal], e.g. to the ranges SQS accepts
+// (MaxNumberOfMessages 1-10, WaitTimeSeconds 0-20).
+func clampInt32(v, minVal, maxVal int32) int32 {
+	return min(max(v, minVal), maxVal)
 }
 
 func getEnvAsBool(key string, defaultValue bool) bool {

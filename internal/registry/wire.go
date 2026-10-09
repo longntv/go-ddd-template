@@ -18,7 +18,7 @@ import (
 	"github.com/longntv/go-ddd-template/internal/service"
 )
 
-//go:generate go run github.com/google/wire/cmd/wire@latest
+//go:generate go run github.com/google/wire/cmd/wire@v0.6.0
 
 // InitializeServer initializes the HTTP server with the necessary dependencies.
 func InitializeServer(

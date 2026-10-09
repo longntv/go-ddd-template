@@ -13,7 +13,11 @@ var WireSet = wire.NewSet(
 	NewWriter,
 )
 
-// NewClient creates a new S3 client.
+// NewClient creates a new S3 client. With a custom endpoint (LocalStack) it
+// uses path-style addressing, since virtual-hosted bucket hostnames such as
+// bucket.localhost don't resolve.
 func NewClient(cfg aws.Config) *s3.Client {
-	return s3.NewFromConfig(cfg)
+	return s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.UsePathStyle = cfg.BaseEndpoint != nil
+	})
 }

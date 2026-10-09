@@ -24,8 +24,8 @@ func NewSubscriberFromConfig(client *sqs.Client, cfg *appconfig.Config) *Subscri
 	return &Subscriber{
 		client:      client,
 		queueURL:    cfg.SQS.QueueURL,
-		maxMessages: int32(cfg.SQS.MaxMessages),
-		waitTime:    int32(cfg.SQS.WaitTimeSeconds),
+		maxMessages: cfg.SQS.MaxMessages,
+		waitTime:    cfg.SQS.WaitTimeSeconds,
 	}
 }
 
