@@ -8,6 +8,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
 	"github.com/longntv/go-ddd-template/internal/domain/event"
@@ -44,6 +46,8 @@ func Test_updateUser_Execute(t *testing.T) {
 		args        args
 		expected    *output.UpdateUser
 		wantErrCode string
+		// wantPublishErrLogged is the event type whose failed Publish must be logged; "" = no log.
+		wantPublishErrLogged string
 	}
 
 	tests := map[string]testcase{
@@ -74,6 +78,18 @@ func Test_updateUser_Execute(t *testing.T) {
 			},
 			args:     args{ctx: context.Background(), in: in},
 			expected: &output.UpdateUser{User: updated},
+		},
+		"publish failure does not fail the request": {
+			prepare: func(a *args, f *fields) {
+				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(existing, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
+				f.mockCommands.EXPECT().Update(a.ctx, gomock.Any()).Return(nil).Times(1)
+				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(updated, nil).Times(1)
+				f.mockPublisher.EXPECT().Publish(a.ctx, gomock.Any()).Return(errors.New("sns unavailable")).Times(1)
+			},
+			args:                 args{ctx: context.Background(), in: in},
+			expected:             &output.UpdateUser{User: updated},
+			wantPublishErrLogged: event.UserUpdatedEvent,
 		},
 		"user not found": {
 			prepare: func(a *args, f *fields) {
@@ -114,6 +130,7 @@ func Test_updateUser_Execute(t *testing.T) {
 			t.Parallel()
 
 			ctrl := gomock.NewController(t)
+			logCore, logs := observer.New(zap.ErrorLevel)
 			f := &fields{
 				mockCommands:  mockgateway.NewMockUserCommandsGateway(ctrl),
 				mockQueries:   mockgateway.NewMockUserQueriesGateway(ctrl),
@@ -124,10 +141,11 @@ func Test_updateUser_Execute(t *testing.T) {
 				tt.prepare(&tt.args, f)
 			}
 
-			uc := NewUpdateUser(f.mockCommands, f.mockQueries, f.mockHasher, f.mockPublisher)
+			uc := NewUpdateUser(f.mockCommands, f.mockQueries, f.mockHasher, f.mockPublisher, zap.New(logCore))
 			actual, err := uc.Execute(tt.args.ctx, tt.args.in)
 
 			assertDomainErrorCode(t, err, tt.wantErrCode)
+			assertPublishErrLogged(t, logs, tt.wantPublishErrLogged)
 			if diff := cmp.Diff(tt.expected, actual); diff != "" {
 				t.Errorf("updateUser.Execute() mismatch (-want +got):\n%s", diff)
 			}

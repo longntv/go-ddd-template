@@ -11,9 +11,11 @@ import (
 	"github.com/longntv/go-ddd-template/internal/domain/gateway"
 	"github.com/longntv/go-ddd-template/internal/handler/health"
 	"github.com/longntv/go-ddd-template/internal/handler/http"
+	"github.com/longntv/go-ddd-template/internal/handler/http/middleware"
 	"github.com/longntv/go-ddd-template/internal/handler/http/server"
 	"github.com/longntv/go-ddd-template/internal/infrastructure/datastore"
 	"github.com/longntv/go-ddd-template/internal/service"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -22,18 +24,24 @@ import (
 // InitializeServer builds the real HTTP router for integration tests.
 //
 // Unlike internal/registry, external dependencies are parameters: the test
-// passes its own database, a fast password hasher and a mock event publisher, so the whole stack
+// passes its own database, a fast password hasher, a mock event publisher and
+// a test logger, so the whole stack
 // from router to Postgres runs for real without AWS.
-func InitializeServer(gormDB *gorm.DB, passwordHasher gateway.PasswordHasher, eventPublisher gateway.EventPublisher) (*gin.Engine, error) {
+func InitializeServer(gormDB *gorm.DB, passwordHasher gateway.PasswordHasher, eventPublisher gateway.EventPublisher, logger *zap.Logger) (*gin.Engine, error) {
 	userCommandsGateway := datastore.NewUserWriter(gormDB)
 	userQueriesGateway := datastore.NewUserReader(gormDB)
-	createUser := service.NewCreateUser(userCommandsGateway, userQueriesGateway, passwordHasher, eventPublisher)
+	createUser := service.NewCreateUser(userCommandsGateway, userQueriesGateway, passwordHasher, eventPublisher, logger)
 	getUser := service.NewGetUser(userQueriesGateway)
 	listUsers := service.NewListUsers(userQueriesGateway)
-	updateUser := service.NewUpdateUser(userCommandsGateway, userQueriesGateway, passwordHasher, eventPublisher)
-	deleteUser := service.NewDeleteUser(userCommandsGateway, userQueriesGateway, eventPublisher)
+	updateUser := service.NewUpdateUser(userCommandsGateway, userQueriesGateway, passwordHasher, eventPublisher, logger)
+	deleteUser := service.NewDeleteUser(userCommandsGateway, userQueriesGateway, eventPublisher, logger)
 	handler := server.NewHandler(createUser, getUser, listUsers, updateUser, deleteUser)
 	healthHandler := health.NewHealthHandler()
-	engine := http.Router(handler, healthHandler)
+	corsConfig := _wireCORSConfigValue
+	engine := http.Router(handler, healthHandler, corsConfig)
 	return engine, nil
 }
+
+var (
+	_wireCORSConfigValue = middleware.CORSConfig{}
+)

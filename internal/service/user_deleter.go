@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"go.uber.org/zap"
+
 	"github.com/longntv/go-ddd-template/internal/domain/event"
 	"github.com/longntv/go-ddd-template/internal/domain/gateway"
 	"github.com/longntv/go-ddd-template/internal/domain/model"
@@ -16,11 +18,13 @@ func NewDeleteUser(
 	userCommandsGateway gateway.UserCommandsGateway,
 	userQueriesGateway gateway.UserQueriesGateway,
 	eventPublisher gateway.EventPublisher,
+	logger *zap.Logger,
 ) usecase.DeleteUser {
 	return &deleteUser{
 		userCommandsGateway: userCommandsGateway,
 		userQueriesGateway:  userQueriesGateway,
 		eventPublisher:      eventPublisher,
+		logger:              logger,
 	}
 }
 
@@ -29,6 +33,7 @@ type deleteUser struct {
 	userCommandsGateway gateway.UserCommandsGateway
 	userQueriesGateway  gateway.UserQueriesGateway
 	eventPublisher      gateway.EventPublisher
+	logger              *zap.Logger
 }
 
 func (s *deleteUser) Execute(ctx context.Context, in *input.DeleteUser) error {
@@ -57,10 +62,7 @@ func (s *deleteUser) Execute(ctx context.Context, in *input.DeleteUser) error {
 			Email: userEntity.Email,
 		},
 	)
-	if err := s.eventPublisher.Publish(ctx, userEvent); err != nil {
-		// Log error but don't fail the request
-		_ = err
-	}
+	publishBestEffort(ctx, s.eventPublisher, s.logger, userEvent)
 
 	return nil
 }

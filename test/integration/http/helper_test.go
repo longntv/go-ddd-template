@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap/zaptest"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
@@ -36,7 +37,7 @@ func NewHTTPTestHelper(t *testing.T) *HTTPTestHelper {
 	gormDB, _ := testutil.InitDB(t)
 	mockPublisher := mockgateway.NewMockEventPublisher(gomock.NewController(t))
 
-	router, err := registry.InitializeServer(gormDB, crypto.NewBcryptHasher(bcrypt.MinCost), mockPublisher)
+	router, err := registry.InitializeServer(gormDB, crypto.NewBcryptHasher(bcrypt.MinCost), mockPublisher, zaptest.NewLogger(t))
 	if err != nil {
 		t.Fatalf("initialize server: %v", err)
 	}

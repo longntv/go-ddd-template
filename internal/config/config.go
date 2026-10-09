@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Config holds the application configuration.
@@ -24,6 +25,8 @@ func Load() *Config {
 			Env:      getEnv("APP_ENV", "development"),
 			Port:     getEnv("APP_PORT", "8080"),
 			LogLevel: getEnv("LOG_LEVEL", "debug"),
+
+			CORSAllowedOrigins: getEnvAsList("CORS_ALLOWED_ORIGINS"),
 		},
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "localhost"),
@@ -96,6 +99,18 @@ func getEnvAsInt32(key string, defaultValue int32) int32 {
 // (MaxNumberOfMessages 1-10, WaitTimeSeconds 0-20).
 func clampInt32(v, minVal, maxVal int32) int32 {
 	return min(max(v, minVal), maxVal)
+}
+
+// getEnvAsList splits a comma-separated variable, trimming spaces and
+// dropping empty items. Unset or blank returns nil.
+func getEnvAsList(key string) []string {
+	var list []string
+	for _, item := range strings.Split(os.Getenv(key), ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			list = append(list, item)
+		}
+	}
+	return list
 }
 
 func getEnvAsBool(key string, defaultValue bool) bool {
