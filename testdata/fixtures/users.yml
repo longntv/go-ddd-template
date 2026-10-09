@@ -1,22 +1,23 @@
 # Rows for the users table, loaded once into the template database.
 # Integration tests refer to these IDs directly; keep them stable.
+# password_hash values are bcrypt (cost 4) hashes of the password in the comment.
 - id: "11111111-1111-1111-1111-111111111111"
   name: "Alice"
   email: "alice@example.com"
-  password: "password-alice"
+  password_hash: "$2a$04$Y5C21koavab7w1PK4ItXPeqiA.c.bs6Mf9OGCwZFUaTYgE8hWmNVC" # password-alice
   created_at: "2025-01-01 10:00:00"
   updated_at: "2025-01-01 10:00:00"
 
 - id: "22222222-2222-2222-2222-222222222222"
   name: "Bob"
   email: "bob@example.com"
-  password: "password-bob"
+  password_hash: "$2a$04$3SoNKU2fO2RQ6NZEi/z7lOAlIDQBGZKwluW6FLoGVE9A5y6CEpgX6" # password-bob
   created_at: "2025-01-02 10:00:00"
   updated_at: "2025-01-02 10:00:00"
 
 - id: "33333333-3333-3333-3333-333333333333"
   name: "Carol"
   email: "carol@example.com"
-  password: "password-carol"
+  password_hash: "$2a$04$9of8AkUek.2loE4/GeL5w.fHFChDSohnZsIZB6e5kUeO4AOeV0vhG" # password-carol
   created_at: "2025-01-03 10:00:00"
   updated_at: "2025-01-03 10:00:00"

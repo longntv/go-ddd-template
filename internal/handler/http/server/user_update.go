@@ -21,7 +21,7 @@ func (h *Handler) Update(c *gin.Context) {
 	var in struct {
 		Name     string `json:"name" binding:"required,min=1,max=255"`
 		Email    string `json:"email" binding:"required,email,max=255"`
-		Password string `json:"password" binding:"required,min=8"`
+		Password string `json:"password" binding:"required,min=8,max=72"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

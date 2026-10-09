@@ -20,6 +20,8 @@ import (
 	mockgateway "github.com/longntv/go-ddd-template/internal/domain/gateway/mock"
 )
 
+const fakeHash = "$2a$10$hashed-password"
+
 func Test_createUser_Execute(t *testing.T) {
 	t.Parallel()
 
@@ -30,12 +32,12 @@ func Test_createUser_Execute(t *testing.T) {
 			Password: "password123",
 		}
 		createdUser = &entity.User{
-			ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-			Name:      "Alice",
-			Email:     "alice@example.com",
-			Password:  "password123",
-			CreatedAt: time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC),
+			ID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+			Name:         "Alice",
+			Email:        "alice@example.com",
+			PasswordHash: fakeHash,
+			CreatedAt:    time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC),
+			UpdatedAt:    time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC),
 		}
 		errDB = errors.New("database connection error")
 	)
@@ -43,6 +45,7 @@ func Test_createUser_Execute(t *testing.T) {
 	type fields struct {
 		mockCommands  *mockgateway.MockUserCommandsGateway
 		mockQueries   *mockgateway.MockUserQueriesGateway
+		mockHasher    *mockgateway.MockPasswordHasher
 		mockPublisher *mockgateway.MockEventPublisher
 	}
 	type args struct {
@@ -64,11 +67,19 @@ func Test_createUser_Execute(t *testing.T) {
 					Return(false, nil).
 					Times(1)
 
+				f.mockHasher.EXPECT().
+					Hash(in.Password).
+					Return(fakeHash, nil).
+					Times(1)
+
 				f.mockCommands.EXPECT().
 					Create(a.ctx, gomock.Any()).
 					DoAndReturn(func(_ context.Context, u *entity.User) error {
 						if u.Name != in.Name || u.Email != in.Email {
 							t.Errorf("Create() got user %+v, want name/email from input", u)
+						}
+						if u.PasswordHash != fakeHash {
+							t.Errorf("Create() PasswordHash = %q, want the hasher output, never the plain text", u.PasswordHash)
 						}
 						return nil
 					}).
@@ -98,6 +109,7 @@ func Test_createUser_Execute(t *testing.T) {
 		"publish failure does not fail the request": {
 			prepare: func(a *args, f *fields) {
 				f.mockQueries.EXPECT().Exists(a.ctx, in.Email).Return(false, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
 				f.mockCommands.EXPECT().Create(a.ctx, gomock.Any()).Return(nil).Times(1)
 				f.mockQueries.EXPECT().GetByEmail(a.ctx, in.Email).Return(createdUser, nil).Times(1)
 				f.mockPublisher.EXPECT().Publish(a.ctx, gomock.Any()).Return(errors.New("sns unavailable")).Times(1)
@@ -119,9 +131,26 @@ func Test_createUser_Execute(t *testing.T) {
 			args:        args{ctx: context.Background(), in: in},
 			wantErrCode: "INTERNAL",
 		},
+		"Hash returns error": {
+			prepare: func(a *args, f *fields) {
+				f.mockQueries.EXPECT().Exists(a.ctx, in.Email).Return(false, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return("", errors.New("hash password: boom")).Times(1)
+			},
+			args:        args{ctx: context.Background(), in: in},
+			wantErrCode: "INTERNAL",
+		},
+		"Hash rejects password as too long": {
+			prepare: func(a *args, f *fields) {
+				f.mockQueries.EXPECT().Exists(a.ctx, in.Email).Return(false, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return("", model.ErrPasswordTooLong).Times(1)
+			},
+			args:        args{ctx: context.Background(), in: in},
+			wantErrCode: "INVALID_INPUT",
+		},
 		"Create returns error": {
 			prepare: func(a *args, f *fields) {
 				f.mockQueries.EXPECT().Exists(a.ctx, in.Email).Return(false, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
 				f.mockCommands.EXPECT().Create(a.ctx, gomock.Any()).Return(errDB).Times(1)
 			},
 			args:        args{ctx: context.Background(), in: in},
@@ -130,6 +159,7 @@ func Test_createUser_Execute(t *testing.T) {
 		"GetByEmail after create returns error": {
 			prepare: func(a *args, f *fields) {
 				f.mockQueries.EXPECT().Exists(a.ctx, in.Email).Return(false, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
 				f.mockCommands.EXPECT().Create(a.ctx, gomock.Any()).Return(nil).Times(1)
 				f.mockQueries.EXPECT().GetByEmail(a.ctx, in.Email).Return(nil, errDB).Times(1)
 			},
@@ -146,13 +176,14 @@ func Test_createUser_Execute(t *testing.T) {
 			f := &fields{
 				mockCommands:  mockgateway.NewMockUserCommandsGateway(ctrl),
 				mockQueries:   mockgateway.NewMockUserQueriesGateway(ctrl),
+				mockHasher:    mockgateway.NewMockPasswordHasher(ctrl),
 				mockPublisher: mockgateway.NewMockEventPublisher(ctrl),
 			}
 			if tt.prepare != nil {
 				tt.prepare(&tt.args, f)
 			}
 
-			uc := NewCreateUser(f.mockCommands, f.mockQueries, f.mockPublisher)
+			uc := NewCreateUser(f.mockCommands, f.mockQueries, f.mockHasher, f.mockPublisher)
 			actual, err := uc.Execute(tt.args.ctx, tt.args.in)
 
 			assertDomainErrorCode(t, err, tt.wantErrCode)

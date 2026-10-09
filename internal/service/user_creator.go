@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
 	"github.com/longntv/go-ddd-template/internal/domain/event"
@@ -16,11 +17,13 @@ import (
 func NewCreateUser(
 	userCommandsGateway gateway.UserCommandsGateway,
 	userQueriesGateway gateway.UserQueriesGateway,
+	passwordHasher gateway.PasswordHasher,
 	eventPublisher gateway.EventPublisher,
 ) usecase.CreateUser {
 	return &createUser{
 		userCommandsGateway: userCommandsGateway,
 		userQueriesGateway:  userQueriesGateway,
+		passwordHasher:      passwordHasher,
 		eventPublisher:      eventPublisher,
 	}
 }
@@ -29,6 +32,7 @@ func NewCreateUser(
 type createUser struct {
 	userCommandsGateway gateway.UserCommandsGateway
 	userQueriesGateway  gateway.UserQueriesGateway
+	passwordHasher      gateway.PasswordHasher
 	eventPublisher      gateway.EventPublisher
 }
 
@@ -42,8 +46,17 @@ func (s *createUser) Execute(ctx context.Context, in *input.CreateUser) (*output
 		return nil, model.NewDomainError("USER_EXISTS", "user with this email already exists", model.ErrUserAlreadyExists)
 	}
 
+	// Hash the password; the plain text never leaves this function.
+	passwordHash, err := s.passwordHasher.Hash(in.Password)
+	if err != nil {
+		if errors.Is(err, model.ErrPasswordTooLong) {
+			return nil, model.NewDomainError("INVALID_INPUT", "password must be at most 72 bytes", err)
+		}
+		return nil, model.NewDomainError("INTERNAL", "failed to hash password", err)
+	}
+
 	// Create user entity
-	userEntity := entity.NewUser(in.Name, in.Email, in.Password)
+	userEntity := entity.NewUser(in.Name, in.Email, passwordHash)
 
 	// Create user
 	if err := s.userCommandsGateway.Create(ctx, userEntity); err != nil {

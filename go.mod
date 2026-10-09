@@ -18,6 +18,7 @@ require (
 	github.com/jackc/pgx/v5 v5.5.5
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.0
+	golang.org/x/crypto v0.41.0
 	golang.org/x/sync v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.5.9
@@ -67,7 +68,6 @@ require (
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect

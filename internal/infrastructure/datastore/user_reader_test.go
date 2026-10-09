@@ -19,20 +19,20 @@ import (
 // Users from testdata/fixtures/users.yml.
 var (
 	fixtureAlice = &entity.User{
-		ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-		Name:      "Alice",
-		Email:     "alice@example.com",
-		Password:  "password-alice",
-		CreatedAt: time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC),
+		ID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		Name:         "Alice",
+		Email:        "alice@example.com",
+		PasswordHash: "$2a$04$Y5C21koavab7w1PK4ItXPeqiA.c.bs6Mf9OGCwZFUaTYgE8hWmNVC",
+		CreatedAt:    time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC),
 	}
 	fixtureBob = &entity.User{
-		ID:        uuid.MustParse("22222222-2222-2222-2222-222222222222"),
-		Name:      "Bob",
-		Email:     "bob@example.com",
-		Password:  "password-bob",
-		CreatedAt: time.Date(2025, 1, 2, 10, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2025, 1, 2, 10, 0, 0, 0, time.UTC),
+		ID:           uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+		Name:         "Bob",
+		Email:        "bob@example.com",
+		PasswordHash: "$2a$04$3SoNKU2fO2RQ6NZEi/z7lOAlIDQBGZKwluW6FLoGVE9A5y6CEpgX6",
+		CreatedAt:    time.Date(2025, 1, 2, 10, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2025, 1, 2, 10, 0, 0, 0, time.UTC),
 	}
 	fixtureUserCount = 3
 )

@@ -105,6 +105,10 @@ func TestHandler(t *testing.T) {
 			request:  request{http.MethodPost, "/api/v1/users", `{"name":"Alice","email":"not-an-email","password":"password123"}`},
 			expected: expected{status: http.StatusBadRequest},
 		},
+		"POST /users rejects passwords longer than bcrypt's 72-byte limit": {
+			request:  request{http.MethodPost, "/api/v1/users", `{"name":"Alice","email":"alice@example.com","password":"` + strings.Repeat("a", 73) + `"}`},
+			expected: expected{status: http.StatusBadRequest},
+		},
 		"POST /users maps USER_EXISTS to 409": {
 			prepare: func(m *mockUseCases) {
 				m.create.EXPECT().

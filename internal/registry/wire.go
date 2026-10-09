@@ -14,6 +14,7 @@ import (
 	"github.com/longntv/go-ddd-template/internal/handler/http/server"
 	"github.com/longntv/go-ddd-template/internal/infrastructure/aws"
 	infracloudevents "github.com/longntv/go-ddd-template/internal/infrastructure/cloudevents"
+	"github.com/longntv/go-ddd-template/internal/infrastructure/crypto"
 	"github.com/longntv/go-ddd-template/internal/infrastructure/datastore"
 	"github.com/longntv/go-ddd-template/internal/service"
 )
@@ -29,6 +30,7 @@ func InitializeServer(
 		// Infrastructure
 		aws.WireSet,
 		datastore.WireSet,
+		crypto.WireSet,
 
 		// CloudEvents
 		infracloudevents.WireSet,

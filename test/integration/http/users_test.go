@@ -5,10 +5,12 @@ package http_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/longntv/go-ddd-template/internal/domain/event"
 )
@@ -85,6 +87,91 @@ func Test_Integration_CreateUser(t *testing.T) {
 			}
 			if got := h.CountUsers(t); got != tt.wantUserCount {
 				t.Errorf("users in db = %d, want %d", got, tt.wantUserCount)
+			}
+		})
+	}
+}
+
+func Test_Integration_PasswordIsStoredHashed(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		method, path, body, email, password string
+		event                               string
+		wantStatus                          int
+	}{
+		"on create": {
+			method: http.MethodPost, path: "/api/v1/users", email: "gina@example.com", password: "gina-password",
+			body:  `{"name":"Gina","email":"gina@example.com","password":"gina-password"}`,
+			event: event.UserCreatedEvent, wantStatus: http.StatusCreated,
+		},
+		"on update": {
+			method: http.MethodPut, path: "/api/v1/users/" + aliceID, email: "alice@example.com", password: "new-alice-password",
+			body:  `{"name":"Alice","email":"alice@example.com","password":"new-alice-password"}`,
+			event: event.UserUpdatedEvent, wantStatus: http.StatusOK,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			h := NewHTTPTestHelper(t)
+			expectPublished(t, h, tt.event)
+
+			status, body := h.Do(t, tt.method, tt.path, tt.body)
+			expectStatus(t, status, tt.wantStatus, body)
+
+			if _, ok := body["password"]; ok {
+				t.Error("response contains a password field")
+			}
+			hash := h.PasswordHash(t, tt.email)
+			if hash == tt.password {
+				t.Fatal("password stored in plain text")
+			}
+			if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(tt.password)); err != nil {
+				t.Errorf("stored hash does not match the password: %v", err)
+			}
+		})
+	}
+}
+
+// Test_Integration_RejectsPasswordsOverBcryptByteLimit covers passwords that pass
+// the 72-character binding but exceed bcrypt's 72-byte limit: they must get
+// 400, not 500, and nothing must be stored or published.
+func Test_Integration_RejectsPasswordsOverBcryptByteLimit(t *testing.T) {
+	t.Parallel()
+
+	password := strings.Repeat("é", 40) // 40 characters, 80 bytes
+	tests := map[string]struct {
+		method, path, body string
+	}{
+		"on create": {
+			method: http.MethodPost, path: "/api/v1/users",
+			body: `{"name":"Hana","email":"hana@example.com","password":"` + password + `"}`,
+		},
+		"on update": {
+			method: http.MethodPut, path: "/api/v1/users/" + aliceID,
+			body: `{"name":"Alice","email":"alice@example.com","password":"` + password + `"}`,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			h := NewHTTPTestHelper(t)
+			usersBefore := h.CountUsers(t)
+			aliceHashBefore := h.PasswordHash(t, "alice@example.com")
+
+			status, body := h.Do(t, tt.method, tt.path, tt.body)
+			expectStatus(t, status, http.StatusBadRequest, body)
+
+			if got := h.CountUsers(t); got != usersBefore {
+				t.Errorf("CountUsers() = %d, want %d", got, usersBefore)
+			}
+			if got := h.PasswordHash(t, "alice@example.com"); got != aliceHashBefore {
+				t.Error("alice's password hash changed")
 			}
 		})
 	}

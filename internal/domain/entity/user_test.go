@@ -12,12 +12,12 @@ import (
 func TestNewUser(t *testing.T) {
 	t.Parallel()
 
-	u := entity.NewUser("Alice", "alice@example.com", "password123")
+	u := entity.NewUser("Alice", "alice@example.com", "$2a$10$hash")
 
 	if u.ID == uuid.Nil {
 		t.Error("NewUser() ID is nil, want a generated UUID")
 	}
-	if u.Name != "Alice" || u.Email != "alice@example.com" || u.Password != "password123" {
+	if u.Name != "Alice" || u.Email != "alice@example.com" || u.PasswordHash != "$2a$10$hash" {
 		t.Errorf("NewUser() = %+v, want fields from arguments", u)
 	}
 	if u.CreatedAt.IsZero() || !u.CreatedAt.Equal(u.UpdatedAt) {
@@ -31,9 +31,9 @@ func TestUser_Update(t *testing.T) {
 	created := time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC)
 	u := &entity.User{ID: uuid.New(), Name: "Alice", Email: "alice@example.com", CreatedAt: created, UpdatedAt: created}
 
-	u.Update("Alice B", "alice.b@example.com", "newpassword")
+	u.Update("Alice B", "alice.b@example.com", "$2a$10$newhash")
 
-	if u.Name != "Alice B" || u.Email != "alice.b@example.com" || u.Password != "newpassword" {
+	if u.Name != "Alice B" || u.Email != "alice.b@example.com" || u.PasswordHash != "$2a$10$newhash" {
 		t.Errorf("Update() = %+v, want fields from arguments", u)
 	}
 	if !u.CreatedAt.Equal(created) {
