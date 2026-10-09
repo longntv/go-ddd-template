@@ -1,6 +1,6 @@
 module github.com/longntv/go-ddd-template
 
-go 1.23.0
+go 1.26.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.36.3
@@ -18,7 +18,7 @@ require (
 	github.com/jackc/pgx/v5 v5.5.5
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/sync v0.16.0
+	golang.org/x/sync v0.24.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.12
