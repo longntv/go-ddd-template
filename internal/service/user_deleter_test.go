@@ -51,7 +51,7 @@ func Test_deleteUser_Execute(t *testing.T) {
 					f.mockCommands.EXPECT().Delete(a.ctx, userID).Return(nil),
 					f.mockPublisher.EXPECT().
 						Publish(a.ctx, gomock.Any()).
-						DoAndReturn(func(_ context.Context, evt *event.UserEvent) error {
+						DoAndReturn(func(_ context.Context, evt *event.DomainEvent) error {
 							if evt.Type != event.UserDeletedEvent {
 								t.Errorf("Publish() event type = %s, want %s", evt.Type, event.UserDeletedEvent)
 							}

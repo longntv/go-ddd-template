@@ -26,7 +26,7 @@ func expectPublished(t *testing.T, h *HTTPTestHelper, eventType string) {
 
 	h.mockPublisher.EXPECT().
 		Publish(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, evt *event.UserEvent) error {
+		DoAndReturn(func(_ context.Context, evt *event.DomainEvent) error {
 			if evt.Type != eventType {
 				t.Errorf("published event type = %s, want %s", evt.Type, eventType)
 			}

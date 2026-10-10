@@ -31,13 +31,16 @@ func TestProvideConfiguredMux_RoutesDomainEvents(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			evt := event.NewUserEvent(tt.eventType, "go-ddd-template", "subject", &event.UserEventData{
+			evt, err := event.NewDomainEvent(tt.eventType, event.Source, "subject", &event.UserEventData{
 				ID:    "11111111-1111-1111-1111-111111111111",
 				Name:  "Alice",
 				Email: "alice@example.com",
 			}).ToCloudEvent()
+			if err != nil {
+				t.Fatalf("ToCloudEvent() error = %v", err)
+			}
 
-			err := mux.Handle(context.Background(), &evt)
+			err = mux.Handle(context.Background(), &evt)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Mux.Handle(%s) error = %v, wantErr %v", tt.eventType, err, tt.wantErr)
 			}

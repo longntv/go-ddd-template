@@ -75,9 +75,9 @@ func (s *createUser) Execute(ctx context.Context, in *input.CreateUser) (*output
 	}
 
 	// Publish event
-	userEvent := event.NewUserEvent(
+	evt := event.NewDomainEvent(
 		event.UserCreatedEvent,
-		"go-ddd-template",
+		event.Source,
 		createdUser.ID.String(),
 		&event.UserEventData{
 			ID:    createdUser.ID.String(),
@@ -85,7 +85,7 @@ func (s *createUser) Execute(ctx context.Context, in *input.CreateUser) (*output
 			Email: createdUser.Email,
 		},
 	)
-	publishBestEffort(ctx, s.eventPublisher, s.logger, userEvent)
+	publishBestEffort(ctx, s.eventPublisher, s.logger, evt)
 
 	return &output.CreateUser{User: createdUser}, nil
 }

@@ -3,6 +3,7 @@ package cloudevents
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/sns/types"
 
@@ -23,13 +24,16 @@ func NewPublisher(snsClient *sns.Publisher) *Publisher {
 }
 
 // Publish publishes a domain event.
-func (p *Publisher) Publish(ctx context.Context, evt *event.UserEvent) error {
-	ce := evt.ToCloudEvent()
+func (p *Publisher) Publish(ctx context.Context, evt *event.DomainEvent) error {
+	ce, err := evt.ToCloudEvent()
+	if err != nil {
+		return err
+	}
 
 	// Convert CloudEvent to JSON
 	data, err := json.Marshal(ce)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal %s cloudevent: %w", ce.Type(), err)
 	}
 
 	// Create message attributes for filtering

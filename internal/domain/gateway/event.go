@@ -11,5 +11,5 @@ import (
 // EventPublisher defines the interface for publishing domain events.
 type EventPublisher interface {
 	// Publish publishes a domain event.
-	Publish(ctx context.Context, evt *event.UserEvent) error
+	Publish(ctx context.Context, evt *event.DomainEvent) error
 }

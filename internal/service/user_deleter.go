@@ -52,9 +52,9 @@ func (s *deleteUser) Execute(ctx context.Context, in *input.DeleteUser) error {
 	}
 
 	// Publish event
-	userEvent := event.NewUserEvent(
+	evt := event.NewDomainEvent(
 		event.UserDeletedEvent,
-		"go-ddd-template",
+		event.Source,
 		userEntity.ID.String(),
 		&event.UserEventData{
 			ID:    userEntity.ID.String(),
@@ -62,7 +62,7 @@ func (s *deleteUser) Execute(ctx context.Context, in *input.DeleteUser) error {
 			Email: userEntity.Email,
 		},
 	)
-	publishBestEffort(ctx, s.eventPublisher, s.logger, userEvent)
+	publishBestEffort(ctx, s.eventPublisher, s.logger, evt)
 
 	return nil
 }
