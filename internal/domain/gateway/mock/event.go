@@ -17,6 +17,44 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
+// MockEventOutbox is a mock of EventOutbox interface.
+type MockEventOutbox struct {
+	ctrl     *gomock.Controller
+	recorder *MockEventOutboxMockRecorder
+	isgomock struct{}
+}
+
+// MockEventOutboxMockRecorder is the mock recorder for MockEventOutbox.
+type MockEventOutboxMockRecorder struct {
+	mock *MockEventOutbox
+}
+
+// NewMockEventOutbox creates a new mock instance.
+func NewMockEventOutbox(ctrl *gomock.Controller) *MockEventOutbox {
+	mock := &MockEventOutbox{ctrl: ctrl}
+	mock.recorder = &MockEventOutboxMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockEventOutbox) EXPECT() *MockEventOutboxMockRecorder {
+	return m.recorder
+}
+
+// Add mocks base method.
+func (m *MockEventOutbox) Add(ctx context.Context, evt *event.DomainEvent) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Add", ctx, evt)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Add indicates an expected call of Add.
+func (mr *MockEventOutboxMockRecorder) Add(ctx, evt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockEventOutbox)(nil).Add), ctx, evt)
+}
+
 // MockEventPublisher is a mock of EventPublisher interface.
 type MockEventPublisher struct {
 	ctrl     *gomock.Controller

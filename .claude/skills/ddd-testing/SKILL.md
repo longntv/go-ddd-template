@@ -9,10 +9,11 @@ Rules that always apply are in `.claude/rules/testing.md`. Reference tests to co
 
 | Kind | Copy from |
 |---|---|
-| Service unit test | `internal/service/user_creator_test.go` (has `assertDomainErrorCode`, `ignoreTimestamps`) |
+| Service unit test | `internal/service/user_creator_test.go` (has `assertDomainErrorCode`, `expectTx`, `expectTxCommitFails`, `expectOutboxAdd`, `ignoreTimestamps`) |
 | Handler unit test | `internal/handler/http/server/handler_test.go` |
 | Datastore reader (integration) | `internal/infrastructure/datastore/user_reader_test.go` |
 | Datastore writer (integration) | `internal/infrastructure/datastore/user_writer_test.go` |
+| Transactions, outbox, relay (integration) | `internal/infrastructure/datastore/outbox_test.go` |
 | HTTP end-to-end (integration) | `test/integration/http/users_test.go` + `helper_test.go` |
 
 ## 1. Service unit test
@@ -29,9 +30,10 @@ func Test_createOrder_Execute(t *testing.T) {
 	var ( /* shared inputs, entities, errDB := errors.New("database connection error") */ )
 
 	type fields struct {
-		mockCommands  *mockgateway.MockOrderCommandsGateway
-		mockQueries   *mockgateway.MockOrderQueriesGateway
-		mockPublisher *mockgateway.MockEventPublisher
+		mockCommands *mockgateway.MockOrderCommandsGateway
+		mockQueries  *mockgateway.MockOrderQueriesGateway
+		mockTx       *mockgateway.MockTransactor
+		mockOutbox   *mockgateway.MockEventOutbox
 	}
 	type args struct {
 		ctx context.Context
@@ -42,12 +44,20 @@ func Test_createOrder_Execute(t *testing.T) {
 		args        args
 		expected    *output.CreateOrder
 		wantErrCode string // "" = no error
-		wantPublishErrLogged string // event type whose failed Publish must be logged; "" = none
 	}
 
 	tests := map[string]testcase{
-		"successfully create order and publish event": { /* prepare: EXPECT()...Times(1) */ },
-		"<dependency> returns error":                    { /* wantErrCode: "INTERNAL" */ },
+		"successfully create order and add event to outbox in one transaction": {
+			prepare: func(a *args, f *fields) {
+				gomock.InOrder(
+					expectTx(f.mockTx, a.ctx), // runs the transaction function with txCtx
+					f.mockCommands.EXPECT().Create(txCtx, gomock.Any()).Return(nil),
+					expectOutboxAdd(t, f.mockOutbox, event.OrderCreatedEvent, order),
+				)
+			},
+		},
+		"<dependency> returns error": { /* wantErrCode: "INTERNAL" */ },
+		"commit fails":               { /* expectTxCommitFails(f.mockTx, a.ctx, errDB); wantErrCode: "INTERNAL" */ },
 	}
 
 	for name, tt := range tests {
@@ -55,16 +65,14 @@ func Test_createOrder_Execute(t *testing.T) {
 			t.Parallel()
 
 			ctrl := gomock.NewController(t)
-			logCore, logs := observer.New(zap.ErrorLevel) // go.uber.org/zap/zaptest/observer
 			f := &fields{ /* mockgateway.NewMock...(ctrl) */ }
 			if tt.prepare != nil {
 				tt.prepare(&tt.args, f)
 			}
 
-			actual, err := NewCreateOrder(f.mockCommands, f.mockQueries, f.mockPublisher, zap.New(logCore)).Execute(tt.args.ctx, tt.args.in)
+			actual, err := NewCreateOrder(f.mockCommands, f.mockQueries, f.mockTx, f.mockOutbox).Execute(tt.args.ctx, tt.args.in)
 
 			assertDomainErrorCode(t, err, tt.wantErrCode)
-			assertPublishErrLogged(t, logs, tt.wantPublishErrLogged)
 			if diff := cmp.Diff(tt.expected, actual); diff != "" {
 				t.Errorf("createOrder.Execute() mismatch (-want +got):\n%s", diff)
 			}
@@ -72,10 +80,10 @@ func Test_createOrder_Execute(t *testing.T) {
 	}
 }
 ```
-Cases to include: happy path (assert the published event type with `DoAndReturn`), every domain
-error code, every dependency error, and "publish failure does not fail the request"
-(`wantPublishErrLogged: event.OrderCreatedEvent`): services publish through `publishBestEffort`, which logs the
-failure instead of returning it. Use `gomock.InOrder` when the order of calls matters.
+Cases to include: happy path (assert the whole event with an `expectOutboxAdd`-style helper), every
+domain error code, every dependency error, "outbox Add returns error" and "commit fails" (both
+`INTERNAL`). Calls inside the transaction expect `txCtx`, not `a.ctx`: that is what proves they run
+in the transaction. Use `gomock.InOrder` when the order of calls matters.
 
 ## 2. Handler unit test
 Package `server_test`. Build a `gin.New()` engine with the handler and only the routes under test,
@@ -103,7 +111,9 @@ errors (400), each mapped domain code (404/409) and unexpected errors (500 with
 - In `test/integration/http/<agg>_test.go`, use one `NewHTTPTestHelper(t)` per subtest. Call
   `h.Do(t, method, path, body)`, then assert the status, the response fields, and the DB side
   effect (count rows or read back through the API).
-- Set publisher expectations with `expectPublished(t, h, event.<X>Event)`.
+- Events stop in the outbox: take `before := h.OutboxEvents(t)` before the request, then
+  `expectNewOutboxEvents(t, h, before, OutboxEvent{Type: event.<X>Event, Subject: id})` (no
+  arguments after `before` when the request must save no event).
 
 ## 5. Run
 ```bash

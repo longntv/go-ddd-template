@@ -1,0 +1,29 @@
+# Rows for the outbox_events table, loaded once into the template database.
+# One row per relay state; seq follows the order below (1, 2, 3).
+# All are about Carol so tests about other users can ignore them.
+- id: "aaaaaaaa-0000-0000-0000-000000000001" # pending and due: the relay publishes it
+  type: "com.go-ddd-template.user.created"
+  source: "go-ddd-template"
+  subject: "33333333-3333-3333-3333-333333333333"
+  data: '{"id":"33333333-3333-3333-3333-333333333333","name":"Carol","email":"carol@example.com"}'
+  occurred_at: "2025-01-03 10:00:00+00"
+  next_attempt_at: "2025-01-03 10:00:00+00"
+
+- id: "aaaaaaaa-0000-0000-0000-000000000002" # failed before, retry not due yet: the relay skips it
+  type: "com.go-ddd-template.user.updated"
+  source: "go-ddd-template"
+  subject: "33333333-3333-3333-3333-333333333333"
+  data: '{"id":"33333333-3333-3333-3333-333333333333","name":"Carol","email":"carol@example.com"}'
+  occurred_at: "2025-01-03 11:00:00+00"
+  attempts: 3
+  next_attempt_at: "2999-01-01 00:00:00+00"
+  last_error: "sns unavailable"
+
+- id: "aaaaaaaa-0000-0000-0000-000000000003" # already published: the relay skips it
+  type: "com.go-ddd-template.user.updated"
+  source: "go-ddd-template"
+  subject: "33333333-3333-3333-3333-333333333333"
+  data: '{"id":"33333333-3333-3333-3333-333333333333","name":"Carol","email":"carol@example.com"}'
+  occurred_at: "2025-01-03 12:00:00+00"
+  next_attempt_at: "2025-01-03 12:00:00+00"
+  published_at: "2025-01-03 12:00:01+00"

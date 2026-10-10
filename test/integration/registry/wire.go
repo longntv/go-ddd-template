@@ -5,7 +5,6 @@ package registry
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"github.com/longntv/go-ddd-template/internal/domain/gateway"
@@ -22,18 +21,18 @@ import (
 // InitializeServer builds the real HTTP router for integration tests.
 //
 // Unlike internal/registry, external dependencies are parameters: the test
-// passes its own database, a fast password hasher, a mock event publisher and
-// a test logger, so the whole stack
-// from router to Postgres runs for real without AWS.
+// passes its own database and a fast password hasher, so the whole stack from
+// router to Postgres runs for real without AWS. Events stop at the outbox
+// table; the outbox relay has its own tests in the datastore package.
 func InitializeServer(
 	gormDB *gorm.DB,
 	passwordHasher gateway.PasswordHasher,
-	eventPublisher gateway.EventPublisher,
-	logger *zap.Logger,
 ) (*gin.Engine, error) {
 	wire.Build(
+		datastore.NewTransactor,
 		datastore.NewUserReader,
 		datastore.NewUserWriter,
+		datastore.NewEventOutbox,
 		service.WireSet,
 		health.WireSet,
 		server.WireSet,

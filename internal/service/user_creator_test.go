@@ -10,8 +10,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
 	"github.com/longntv/go-ddd-template/internal/domain/event"
@@ -45,10 +43,11 @@ func Test_createUser_Execute(t *testing.T) {
 	)
 
 	type fields struct {
-		mockCommands  *mockgateway.MockUserCommandsGateway
-		mockQueries   *mockgateway.MockUserQueriesGateway
-		mockHasher    *mockgateway.MockPasswordHasher
-		mockPublisher *mockgateway.MockEventPublisher
+		mockCommands *mockgateway.MockUserCommandsGateway
+		mockQueries  *mockgateway.MockUserQueriesGateway
+		mockHasher   *mockgateway.MockPasswordHasher
+		mockTx       *mockgateway.MockTransactor
+		mockOutbox   *mockgateway.MockEventOutbox
 	}
 	type args struct {
 		ctx context.Context
@@ -59,12 +58,10 @@ func Test_createUser_Execute(t *testing.T) {
 		args        args
 		expected    *output.CreateUser
 		wantErrCode string
-		// wantPublishErrLogged is the event type whose failed Publish must be logged; "" = no log.
-		wantPublishErrLogged string
 	}
 
 	tests := map[string]testcase{
-		"successfully create user and publish event": {
+		"successfully create user and add event to outbox in one transaction": {
 			prepare: func(a *args, f *fields) {
 				f.mockQueries.EXPECT().
 					Exists(a.ctx, in.Email).
@@ -76,51 +73,25 @@ func Test_createUser_Execute(t *testing.T) {
 					Return(fakeHash, nil).
 					Times(1)
 
-				f.mockCommands.EXPECT().
-					Create(a.ctx, gomock.Any()).
-					DoAndReturn(func(_ context.Context, u *entity.User) error {
-						if u.Name != in.Name || u.Email != in.Email {
-							t.Errorf("Create() got user %+v, want name/email from input", u)
-						}
-						if u.PasswordHash != fakeHash {
-							t.Errorf("Create() PasswordHash = %q, want the hasher output, never the plain text", u.PasswordHash)
-						}
-						return nil
-					}).
-					Times(1)
-
-				f.mockQueries.EXPECT().
-					GetByEmail(a.ctx, in.Email).
-					Return(createdUser, nil).
-					Times(1)
-
-				f.mockPublisher.EXPECT().
-					Publish(a.ctx, gomock.Any()).
-					DoAndReturn(func(_ context.Context, evt *event.DomainEvent) error {
-						if evt.Type != event.UserCreatedEvent {
-							t.Errorf("Publish() event type = %s, want %s", evt.Type, event.UserCreatedEvent)
-						}
-						if evt.Subject != createdUser.ID.String() {
-							t.Errorf("Publish() subject = %s, want %s", evt.Subject, createdUser.ID)
-						}
-						return nil
-					}).
-					Times(1)
+				gomock.InOrder(
+					expectTx(f.mockTx, a.ctx),
+					f.mockCommands.EXPECT().
+						Create(txCtx, gomock.Any()).
+						DoAndReturn(func(_ context.Context, u *entity.User) error {
+							if u.Name != in.Name || u.Email != in.Email {
+								t.Errorf("Create() got user %+v, want name/email from input", u)
+							}
+							if u.PasswordHash != fakeHash {
+								t.Errorf("Create() PasswordHash = %q, want the hasher output, never the plain text", u.PasswordHash)
+							}
+							return nil
+						}),
+					f.mockQueries.EXPECT().GetByEmail(txCtx, in.Email).Return(createdUser, nil),
+					expectOutboxAdd(t, f.mockOutbox, event.UserCreatedEvent, createdUser),
+				)
 			},
 			args:     args{ctx: context.Background(), in: in},
 			expected: &output.CreateUser{User: createdUser},
-		},
-		"publish failure does not fail the request": {
-			prepare: func(a *args, f *fields) {
-				f.mockQueries.EXPECT().Exists(a.ctx, in.Email).Return(false, nil).Times(1)
-				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
-				f.mockCommands.EXPECT().Create(a.ctx, gomock.Any()).Return(nil).Times(1)
-				f.mockQueries.EXPECT().GetByEmail(a.ctx, in.Email).Return(createdUser, nil).Times(1)
-				f.mockPublisher.EXPECT().Publish(a.ctx, gomock.Any()).Return(errors.New("sns unavailable")).Times(1)
-			},
-			args:                 args{ctx: context.Background(), in: in},
-			expected:             &output.CreateUser{User: createdUser},
-			wantPublishErrLogged: event.UserCreatedEvent,
 		},
 		"email already exists": {
 			prepare: func(a *args, f *fields) {
@@ -156,7 +127,8 @@ func Test_createUser_Execute(t *testing.T) {
 			prepare: func(a *args, f *fields) {
 				f.mockQueries.EXPECT().Exists(a.ctx, in.Email).Return(false, nil).Times(1)
 				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
-				f.mockCommands.EXPECT().Create(a.ctx, gomock.Any()).Return(errDB).Times(1)
+				expectTx(f.mockTx, a.ctx)
+				f.mockCommands.EXPECT().Create(txCtx, gomock.Any()).Return(errDB).Times(1)
 			},
 			args:        args{ctx: context.Background(), in: in},
 			wantErrCode: "INTERNAL",
@@ -165,8 +137,33 @@ func Test_createUser_Execute(t *testing.T) {
 			prepare: func(a *args, f *fields) {
 				f.mockQueries.EXPECT().Exists(a.ctx, in.Email).Return(false, nil).Times(1)
 				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
-				f.mockCommands.EXPECT().Create(a.ctx, gomock.Any()).Return(nil).Times(1)
-				f.mockQueries.EXPECT().GetByEmail(a.ctx, in.Email).Return(nil, errDB).Times(1)
+				expectTx(f.mockTx, a.ctx)
+				f.mockCommands.EXPECT().Create(txCtx, gomock.Any()).Return(nil).Times(1)
+				f.mockQueries.EXPECT().GetByEmail(txCtx, in.Email).Return(nil, errDB).Times(1)
+			},
+			args:        args{ctx: context.Background(), in: in},
+			wantErrCode: "INTERNAL",
+		},
+		"outbox Add returns error": {
+			prepare: func(a *args, f *fields) {
+				f.mockQueries.EXPECT().Exists(a.ctx, in.Email).Return(false, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
+				expectTx(f.mockTx, a.ctx)
+				f.mockCommands.EXPECT().Create(txCtx, gomock.Any()).Return(nil).Times(1)
+				f.mockQueries.EXPECT().GetByEmail(txCtx, in.Email).Return(createdUser, nil).Times(1)
+				f.mockOutbox.EXPECT().Add(txCtx, gomock.Any()).Return(errDB).Times(1)
+			},
+			args:        args{ctx: context.Background(), in: in},
+			wantErrCode: "INTERNAL",
+		},
+		"commit fails": {
+			prepare: func(a *args, f *fields) {
+				f.mockQueries.EXPECT().Exists(a.ctx, in.Email).Return(false, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
+				expectTxCommitFails(f.mockTx, a.ctx, errDB)
+				f.mockCommands.EXPECT().Create(txCtx, gomock.Any()).Return(nil).Times(1)
+				f.mockQueries.EXPECT().GetByEmail(txCtx, in.Email).Return(createdUser, nil).Times(1)
+				f.mockOutbox.EXPECT().Add(txCtx, gomock.Any()).Return(nil).Times(1)
 			},
 			args:        args{ctx: context.Background(), in: in},
 			wantErrCode: "INTERNAL",
@@ -178,22 +175,21 @@ func Test_createUser_Execute(t *testing.T) {
 			t.Parallel()
 
 			ctrl := gomock.NewController(t)
-			logCore, logs := observer.New(zap.ErrorLevel)
 			f := &fields{
-				mockCommands:  mockgateway.NewMockUserCommandsGateway(ctrl),
-				mockQueries:   mockgateway.NewMockUserQueriesGateway(ctrl),
-				mockHasher:    mockgateway.NewMockPasswordHasher(ctrl),
-				mockPublisher: mockgateway.NewMockEventPublisher(ctrl),
+				mockCommands: mockgateway.NewMockUserCommandsGateway(ctrl),
+				mockQueries:  mockgateway.NewMockUserQueriesGateway(ctrl),
+				mockHasher:   mockgateway.NewMockPasswordHasher(ctrl),
+				mockTx:       mockgateway.NewMockTransactor(ctrl),
+				mockOutbox:   mockgateway.NewMockEventOutbox(ctrl),
 			}
 			if tt.prepare != nil {
 				tt.prepare(&tt.args, f)
 			}
 
-			uc := NewCreateUser(f.mockCommands, f.mockQueries, f.mockHasher, f.mockPublisher, zap.New(logCore))
+			uc := NewCreateUser(f.mockCommands, f.mockQueries, f.mockHasher, f.mockTx, f.mockOutbox)
 			actual, err := uc.Execute(tt.args.ctx, tt.args.in)
 
 			assertDomainErrorCode(t, err, tt.wantErrCode)
-			assertPublishErrLogged(t, logs, tt.wantPublishErrLogged)
 			if diff := cmp.Diff(tt.expected, actual); diff != "" {
 				t.Errorf("createUser.Execute() mismatch (-want +got):\n%s", diff)
 			}
@@ -222,31 +218,51 @@ func assertDomainErrorCode(t *testing.T, err error, wantCode string) {
 	}
 }
 
-// assertPublishErrLogged checks that a failed Publish of wantEventType was
-// logged exactly once with what is needed to replay it, and that nothing was
-// logged when wantEventType is empty.
-func assertPublishErrLogged(t *testing.T, logs *observer.ObservedLogs, wantEventType string) {
+type txCtxKey struct{}
+
+// txCtx is the ctx the mock Transactor passes to the transaction function.
+// Expecting it (not the caller's ctx) on a gateway call proves the call runs
+// inside the transaction.
+var txCtx = context.WithValue(context.Background(), txCtxKey{}, "in transaction")
+
+// expectTx expects one RunInTx with ctx and runs the transaction function
+// with txCtx, returning its error like a transaction that commits on success.
+func expectTx(m *mockgateway.MockTransactor, ctx context.Context) *gomock.Call {
+	return expectTxCommitFails(m, ctx, nil)
+}
+
+// expectTxCommitFails is expectTx for a transaction whose commit returns
+// commitErr after the transaction function succeeds.
+func expectTxCommitFails(m *mockgateway.MockTransactor, ctx context.Context, commitErr error) *gomock.Call {
+	return m.EXPECT().
+		RunInTx(ctx, gomock.Any()).
+		DoAndReturn(func(_ context.Context, fn func(context.Context) error) error {
+			if err := fn(txCtx); err != nil {
+				return err
+			}
+			return commitErr
+		}).
+		Times(1)
+}
+
+// expectOutboxAdd expects one wantType event about user to be added to the
+// outbox inside the transaction.
+func expectOutboxAdd(t *testing.T, m *mockgateway.MockEventOutbox, wantType string, user *entity.User) *gomock.Call {
 	t.Helper()
 
-	entries := logs.FilterMessage("failed to publish event").All()
-	if wantEventType == "" {
-		if len(entries) != 0 {
-			t.Errorf("logged %d publish errors, want none", len(entries))
-		}
-		return
-	}
-	if len(entries) != 1 {
-		t.Fatalf("logged %d publish errors, want 1", len(entries))
-	}
-	fields := entries[0].ContextMap()
-	if diff := cmp.Diff(wantEventType, fields["event_type"]); diff != "" {
-		t.Errorf("logged event_type mismatch (-want +got):\n%s", diff)
-	}
-	for _, key := range []string{"event_id", "subject", "error"} {
-		if fields[key] == nil || fields[key] == "" {
-			t.Errorf("publish error log has no %s: %v", key, fields)
-		}
-	}
+	return m.EXPECT().
+		Add(txCtx, gomock.Any()).
+		DoAndReturn(func(_ context.Context, evt *event.DomainEvent) error {
+			want := &event.DomainEvent{
+				Type: wantType, Source: event.Source, Subject: user.ID.String(),
+				Data: &event.UserEventData{ID: user.ID.String(), Name: user.Name, Email: user.Email},
+			}
+			if diff := cmp.Diff(want, evt, cmpopts.IgnoreFields(event.DomainEvent{}, "ID", "Timestamp")); diff != "" {
+				t.Errorf("Add() event mismatch (-want +got):\n%s", diff)
+			}
+			return nil
+		}).
+		Times(1)
 }
 
 // ignoreTimestamps ignores fields set from the wall clock.

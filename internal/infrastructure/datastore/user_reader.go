@@ -24,7 +24,7 @@ func NewUserReader(db *gorm.DB) gateway.UserQueriesGateway {
 // Get retrieves a user by ID.
 func (r *userReader) Get(ctx context.Context, id entity.UserID) (*entity.User, error) {
 	var userEntity UserEntity
-	err := r.db.WithContext(ctx).Where("id = ?", id).First(&userEntity).Error
+	err := conn(ctx, r.db).Where("id = ?", id).First(&userEntity).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, model.ErrUserNotFound
@@ -37,7 +37,7 @@ func (r *userReader) Get(ctx context.Context, id entity.UserID) (*entity.User, e
 // GetByEmail retrieves a user by email.
 func (r *userReader) GetByEmail(ctx context.Context, email string) (*entity.User, error) {
 	var userEntity UserEntity
-	err := r.db.WithContext(ctx).Where("email = ?", email).First(&userEntity).Error
+	err := conn(ctx, r.db).Where("email = ?", email).First(&userEntity).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, model.ErrUserNotFound
@@ -53,12 +53,12 @@ func (r *userReader) List(ctx context.Context, limit, offset int) ([]*entity.Use
 	var total int64
 
 	// Count total
-	if err := r.db.WithContext(ctx).Model(&UserEntity{}).Count(&total).Error; err != nil {
+	if err := conn(ctx, r.db).Model(&UserEntity{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	// Get paginated results
-	if err := r.db.WithContext(ctx).Limit(limit).Offset(offset).Find(&userEntities).Error; err != nil {
+	if err := conn(ctx, r.db).Limit(limit).Offset(offset).Find(&userEntities).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -73,6 +73,6 @@ func (r *userReader) List(ctx context.Context, limit, offset int) ([]*entity.Use
 // Exists checks if a user exists by email.
 func (r *userReader) Exists(ctx context.Context, email string) (bool, error) {
 	var count int64
-	err := r.db.WithContext(ctx).Model(&UserEntity{}).Where("email = ?", email).Count(&count).Error
+	err := conn(ctx, r.db).Model(&UserEntity{}).Where("email = ?", email).Count(&count).Error
 	return count > 0, err
 }

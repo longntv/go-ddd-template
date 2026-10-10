@@ -27,7 +27,7 @@ func (w *userWriter) Create(ctx context.Context, user *entity.User) error {
 		Email:        user.Email,
 		PasswordHash: user.PasswordHash,
 	}
-	return w.db.WithContext(ctx).Create(userEntity).Error
+	return conn(ctx, w.db).Create(userEntity).Error
 }
 
 // Update updates an existing user.
@@ -37,7 +37,7 @@ func (w *userWriter) Update(ctx context.Context, user *entity.User) error {
 		"email":         user.Email,
 		"password_hash": user.PasswordHash,
 	}
-	result := w.db.WithContext(ctx).Model(&UserEntity{}).Where("id = ?", user.ID).Updates(updates)
+	result := conn(ctx, w.db).Model(&UserEntity{}).Where("id = ?", user.ID).Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -49,7 +49,7 @@ func (w *userWriter) Update(ctx context.Context, user *entity.User) error {
 
 // Delete deletes a user by ID.
 func (w *userWriter) Delete(ctx context.Context, id entity.UserID) error {
-	result := w.db.WithContext(ctx).Delete(&UserEntity{}, "id = ?", id)
+	result := conn(ctx, w.db).Delete(&UserEntity{}, "id = ?", id)
 	if result.Error != nil {
 		return result.Error
 	}

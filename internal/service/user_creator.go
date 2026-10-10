@@ -3,8 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-
-	"go.uber.org/zap"
+	"fmt"
 
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
 	"github.com/longntv/go-ddd-template/internal/domain/event"
@@ -20,15 +19,15 @@ func NewCreateUser(
 	userCommandsGateway gateway.UserCommandsGateway,
 	userQueriesGateway gateway.UserQueriesGateway,
 	passwordHasher gateway.PasswordHasher,
-	eventPublisher gateway.EventPublisher,
-	logger *zap.Logger,
+	transactor gateway.Transactor,
+	eventOutbox gateway.EventOutbox,
 ) usecase.CreateUser {
 	return &createUser{
 		userCommandsGateway: userCommandsGateway,
 		userQueriesGateway:  userQueriesGateway,
 		passwordHasher:      passwordHasher,
-		eventPublisher:      eventPublisher,
-		logger:              logger,
+		transactor:          transactor,
+		eventOutbox:         eventOutbox,
 	}
 }
 
@@ -37,8 +36,8 @@ type createUser struct {
 	userCommandsGateway gateway.UserCommandsGateway
 	userQueriesGateway  gateway.UserQueriesGateway
 	passwordHasher      gateway.PasswordHasher
-	eventPublisher      gateway.EventPublisher
-	logger              *zap.Logger
+	transactor          gateway.Transactor
+	eventOutbox         gateway.EventOutbox
 }
 
 func (s *createUser) Execute(ctx context.Context, in *input.CreateUser) (*output.CreateUser, error) {
@@ -63,29 +62,38 @@ func (s *createUser) Execute(ctx context.Context, in *input.CreateUser) (*output
 	// Create user entity
 	userEntity := entity.NewUser(in.Name, in.Email, passwordHash)
 
-	// Create user
-	if err := s.userCommandsGateway.Create(ctx, userEntity); err != nil {
+	// Save the user and its event in one transaction, so the event is
+	// published (by the outbox relay) if and only if the user is saved.
+	var createdUser *entity.User
+	err = s.transactor.RunInTx(ctx, func(ctx context.Context) error {
+		if err := s.userCommandsGateway.Create(ctx, userEntity); err != nil {
+			return fmt.Errorf("create user: %w", err)
+		}
+
+		user, err := s.userQueriesGateway.GetByEmail(ctx, in.Email)
+		if err != nil {
+			return fmt.Errorf("get created user: %w", err)
+		}
+		createdUser = user
+
+		evt := event.NewDomainEvent(
+			event.UserCreatedEvent,
+			event.Source,
+			createdUser.ID.String(),
+			&event.UserEventData{
+				ID:    createdUser.ID.String(),
+				Name:  createdUser.Name,
+				Email: createdUser.Email,
+			},
+		)
+		if err := s.eventOutbox.Add(ctx, evt); err != nil {
+			return fmt.Errorf("add %s event to outbox: %w", evt.Type, err)
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, model.NewDomainError("INTERNAL", "failed to create user", err)
 	}
-
-	// Get created user
-	createdUser, err := s.userQueriesGateway.GetByEmail(ctx, in.Email)
-	if err != nil {
-		return nil, model.NewDomainError("INTERNAL", "failed to get created user", err)
-	}
-
-	// Publish event
-	evt := event.NewDomainEvent(
-		event.UserCreatedEvent,
-		event.Source,
-		createdUser.ID.String(),
-		&event.UserEventData{
-			ID:    createdUser.ID.String(),
-			Name:  createdUser.Name,
-			Email: createdUser.Email,
-		},
-	)
-	publishBestEffort(ctx, s.eventPublisher, s.logger, evt)
 
 	return &output.CreateUser{User: createdUser}, nil
 }

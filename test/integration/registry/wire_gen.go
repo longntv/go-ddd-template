@@ -15,7 +15,6 @@ import (
 	"github.com/longntv/go-ddd-template/internal/handler/http/server"
 	"github.com/longntv/go-ddd-template/internal/infrastructure/datastore"
 	"github.com/longntv/go-ddd-template/internal/service"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -24,17 +23,19 @@ import (
 // InitializeServer builds the real HTTP router for integration tests.
 //
 // Unlike internal/registry, external dependencies are parameters: the test
-// passes its own database, a fast password hasher, a mock event publisher and
-// a test logger, so the whole stack
-// from router to Postgres runs for real without AWS.
-func InitializeServer(gormDB *gorm.DB, passwordHasher gateway.PasswordHasher, eventPublisher gateway.EventPublisher, logger *zap.Logger) (*gin.Engine, error) {
+// passes its own database and a fast password hasher, so the whole stack from
+// router to Postgres runs for real without AWS. Events stop at the outbox
+// table; the outbox relay has its own tests in the datastore package.
+func InitializeServer(gormDB *gorm.DB, passwordHasher gateway.PasswordHasher) (*gin.Engine, error) {
 	userCommandsGateway := datastore.NewUserWriter(gormDB)
 	userQueriesGateway := datastore.NewUserReader(gormDB)
-	createUser := service.NewCreateUser(userCommandsGateway, userQueriesGateway, passwordHasher, eventPublisher, logger)
+	transactor := datastore.NewTransactor(gormDB)
+	eventOutbox := datastore.NewEventOutbox(gormDB)
+	createUser := service.NewCreateUser(userCommandsGateway, userQueriesGateway, passwordHasher, transactor, eventOutbox)
 	getUser := service.NewGetUser(userQueriesGateway)
 	listUsers := service.NewListUsers(userQueriesGateway)
-	updateUser := service.NewUpdateUser(userCommandsGateway, userQueriesGateway, passwordHasher, eventPublisher, logger)
-	deleteUser := service.NewDeleteUser(userCommandsGateway, userQueriesGateway, eventPublisher, logger)
+	updateUser := service.NewUpdateUser(userCommandsGateway, userQueriesGateway, passwordHasher, transactor, eventOutbox)
+	deleteUser := service.NewDeleteUser(userCommandsGateway, userQueriesGateway, transactor, eventOutbox)
 	handler := server.NewHandler(createUser, getUser, listUsers, updateUser, deleteUser)
 	healthHandler := health.NewHealthHandler()
 	corsConfig := _wireCORSConfigValue

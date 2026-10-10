@@ -3,8 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-
-	"go.uber.org/zap"
+	"fmt"
 
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
 	"github.com/longntv/go-ddd-template/internal/domain/event"
@@ -20,15 +19,15 @@ func NewUpdateUser(
 	userCommandsGateway gateway.UserCommandsGateway,
 	userQueriesGateway gateway.UserQueriesGateway,
 	passwordHasher gateway.PasswordHasher,
-	eventPublisher gateway.EventPublisher,
-	logger *zap.Logger,
+	transactor gateway.Transactor,
+	eventOutbox gateway.EventOutbox,
 ) usecase.UpdateUser {
 	return &updateUser{
 		userCommandsGateway: userCommandsGateway,
 		userQueriesGateway:  userQueriesGateway,
 		passwordHasher:      passwordHasher,
-		eventPublisher:      eventPublisher,
-		logger:              logger,
+		transactor:          transactor,
+		eventOutbox:         eventOutbox,
 	}
 }
 
@@ -37,8 +36,8 @@ type updateUser struct {
 	userCommandsGateway gateway.UserCommandsGateway
 	userQueriesGateway  gateway.UserQueriesGateway
 	passwordHasher      gateway.PasswordHasher
-	eventPublisher      gateway.EventPublisher
-	logger              *zap.Logger
+	transactor          gateway.Transactor
+	eventOutbox         gateway.EventOutbox
 }
 
 func (s *updateUser) Execute(ctx context.Context, in *input.UpdateUser) (*output.UpdateUser, error) {
@@ -64,29 +63,38 @@ func (s *updateUser) Execute(ctx context.Context, in *input.UpdateUser) (*output
 	userEntity := &entity.User{ID: in.ID}
 	userEntity.Update(in.Name, in.Email, passwordHash)
 
-	// Update user
-	if err := s.userCommandsGateway.Update(ctx, userEntity); err != nil {
+	// Save the change and its event in one transaction, so the event is
+	// published (by the outbox relay) if and only if the change is saved.
+	var updatedUser *entity.User
+	err = s.transactor.RunInTx(ctx, func(ctx context.Context) error {
+		if err := s.userCommandsGateway.Update(ctx, userEntity); err != nil {
+			return fmt.Errorf("update user: %w", err)
+		}
+
+		user, err := s.userQueriesGateway.Get(ctx, in.ID)
+		if err != nil {
+			return fmt.Errorf("get updated user: %w", err)
+		}
+		updatedUser = user
+
+		evt := event.NewDomainEvent(
+			event.UserUpdatedEvent,
+			event.Source,
+			updatedUser.ID.String(),
+			&event.UserEventData{
+				ID:    updatedUser.ID.String(),
+				Name:  updatedUser.Name,
+				Email: updatedUser.Email,
+			},
+		)
+		if err := s.eventOutbox.Add(ctx, evt); err != nil {
+			return fmt.Errorf("add %s event to outbox: %w", evt.Type, err)
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, model.NewDomainError("INTERNAL", "failed to update user", err)
 	}
-
-	// Get updated user
-	updatedUser, err := s.userQueriesGateway.Get(ctx, in.ID)
-	if err != nil {
-		return nil, model.NewDomainError("INTERNAL", "failed to get updated user", err)
-	}
-
-	// Publish event
-	evt := event.NewDomainEvent(
-		event.UserUpdatedEvent,
-		event.Source,
-		updatedUser.ID.String(),
-		&event.UserEventData{
-			ID:    updatedUser.ID.String(),
-			Name:  updatedUser.Name,
-			Email: updatedUser.Email,
-		},
-	)
-	publishBestEffort(ctx, s.eventPublisher, s.logger, evt)
 
 	return &output.UpdateUser{User: updatedUser}, nil
 }

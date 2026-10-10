@@ -8,8 +8,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
 	"github.com/longntv/go-ddd-template/internal/domain/event"
@@ -32,10 +30,11 @@ func Test_updateUser_Execute(t *testing.T) {
 	)
 
 	type fields struct {
-		mockCommands  *mockgateway.MockUserCommandsGateway
-		mockQueries   *mockgateway.MockUserQueriesGateway
-		mockHasher    *mockgateway.MockPasswordHasher
-		mockPublisher *mockgateway.MockEventPublisher
+		mockCommands *mockgateway.MockUserCommandsGateway
+		mockQueries  *mockgateway.MockUserQueriesGateway
+		mockHasher   *mockgateway.MockPasswordHasher
+		mockTx       *mockgateway.MockTransactor
+		mockOutbox   *mockgateway.MockEventOutbox
 	}
 	type args struct {
 		ctx context.Context
@@ -46,18 +45,17 @@ func Test_updateUser_Execute(t *testing.T) {
 		args        args
 		expected    *output.UpdateUser
 		wantErrCode string
-		// wantPublishErrLogged is the event type whose failed Publish must be logged; "" = no log.
-		wantPublishErrLogged string
 	}
 
 	tests := map[string]testcase{
-		"successfully update user and publish event": {
+		"successfully update user and add event to outbox in one transaction": {
 			prepare: func(a *args, f *fields) {
 				gomock.InOrder(
 					f.mockQueries.EXPECT().Get(a.ctx, userID).Return(existing, nil),
 					f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil),
+					expectTx(f.mockTx, a.ctx),
 					f.mockCommands.EXPECT().
-						Update(a.ctx, gomock.Any()).
+						Update(txCtx, gomock.Any()).
 						DoAndReturn(func(_ context.Context, u *entity.User) error {
 							want := &entity.User{ID: userID, Name: in.Name, Email: in.Email, PasswordHash: fakeHash}
 							if diff := cmp.Diff(want, u, ignoreTimestamps); diff != "" {
@@ -65,31 +63,47 @@ func Test_updateUser_Execute(t *testing.T) {
 							}
 							return nil
 						}),
-					f.mockQueries.EXPECT().Get(a.ctx, userID).Return(updated, nil),
-					f.mockPublisher.EXPECT().
-						Publish(a.ctx, gomock.Any()).
-						DoAndReturn(func(_ context.Context, evt *event.DomainEvent) error {
-							if evt.Type != event.UserUpdatedEvent {
-								t.Errorf("Publish() event type = %s, want %s", evt.Type, event.UserUpdatedEvent)
-							}
-							return nil
-						}),
+					f.mockQueries.EXPECT().Get(txCtx, userID).Return(updated, nil),
+					expectOutboxAdd(t, f.mockOutbox, event.UserUpdatedEvent, updated),
 				)
 			},
 			args:     args{ctx: context.Background(), in: in},
 			expected: &output.UpdateUser{User: updated},
 		},
-		"publish failure does not fail the request": {
+		"Get after update returns error": {
 			prepare: func(a *args, f *fields) {
 				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(existing, nil).Times(1)
 				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
-				f.mockCommands.EXPECT().Update(a.ctx, gomock.Any()).Return(nil).Times(1)
-				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(updated, nil).Times(1)
-				f.mockPublisher.EXPECT().Publish(a.ctx, gomock.Any()).Return(errors.New("sns unavailable")).Times(1)
+				expectTx(f.mockTx, a.ctx)
+				f.mockCommands.EXPECT().Update(txCtx, gomock.Any()).Return(nil).Times(1)
+				f.mockQueries.EXPECT().Get(txCtx, userID).Return(nil, errDB).Times(1)
 			},
-			args:                 args{ctx: context.Background(), in: in},
-			expected:             &output.UpdateUser{User: updated},
-			wantPublishErrLogged: event.UserUpdatedEvent,
+			args:        args{ctx: context.Background(), in: in},
+			wantErrCode: "INTERNAL",
+		},
+		"outbox Add returns error": {
+			prepare: func(a *args, f *fields) {
+				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(existing, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
+				expectTx(f.mockTx, a.ctx)
+				f.mockCommands.EXPECT().Update(txCtx, gomock.Any()).Return(nil).Times(1)
+				f.mockQueries.EXPECT().Get(txCtx, userID).Return(updated, nil).Times(1)
+				f.mockOutbox.EXPECT().Add(txCtx, gomock.Any()).Return(errDB).Times(1)
+			},
+			args:        args{ctx: context.Background(), in: in},
+			wantErrCode: "INTERNAL",
+		},
+		"commit fails": {
+			prepare: func(a *args, f *fields) {
+				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(existing, nil).Times(1)
+				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
+				expectTxCommitFails(f.mockTx, a.ctx, errDB)
+				f.mockCommands.EXPECT().Update(txCtx, gomock.Any()).Return(nil).Times(1)
+				f.mockQueries.EXPECT().Get(txCtx, userID).Return(updated, nil).Times(1)
+				f.mockOutbox.EXPECT().Add(txCtx, gomock.Any()).Return(nil).Times(1)
+			},
+			args:        args{ctx: context.Background(), in: in},
+			wantErrCode: "INTERNAL",
 		},
 		"user not found": {
 			prepare: func(a *args, f *fields) {
@@ -102,7 +116,8 @@ func Test_updateUser_Execute(t *testing.T) {
 			prepare: func(a *args, f *fields) {
 				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(existing, nil).Times(1)
 				f.mockHasher.EXPECT().Hash(in.Password).Return(fakeHash, nil).Times(1)
-				f.mockCommands.EXPECT().Update(a.ctx, gomock.Any()).Return(errDB).Times(1)
+				expectTx(f.mockTx, a.ctx)
+				f.mockCommands.EXPECT().Update(txCtx, gomock.Any()).Return(errDB).Times(1)
 			},
 			args:        args{ctx: context.Background(), in: in},
 			wantErrCode: "INTERNAL",
@@ -130,22 +145,21 @@ func Test_updateUser_Execute(t *testing.T) {
 			t.Parallel()
 
 			ctrl := gomock.NewController(t)
-			logCore, logs := observer.New(zap.ErrorLevel)
 			f := &fields{
-				mockCommands:  mockgateway.NewMockUserCommandsGateway(ctrl),
-				mockQueries:   mockgateway.NewMockUserQueriesGateway(ctrl),
-				mockHasher:    mockgateway.NewMockPasswordHasher(ctrl),
-				mockPublisher: mockgateway.NewMockEventPublisher(ctrl),
+				mockCommands: mockgateway.NewMockUserCommandsGateway(ctrl),
+				mockQueries:  mockgateway.NewMockUserQueriesGateway(ctrl),
+				mockHasher:   mockgateway.NewMockPasswordHasher(ctrl),
+				mockTx:       mockgateway.NewMockTransactor(ctrl),
+				mockOutbox:   mockgateway.NewMockEventOutbox(ctrl),
 			}
 			if tt.prepare != nil {
 				tt.prepare(&tt.args, f)
 			}
 
-			uc := NewUpdateUser(f.mockCommands, f.mockQueries, f.mockHasher, f.mockPublisher, zap.New(logCore))
+			uc := NewUpdateUser(f.mockCommands, f.mockQueries, f.mockHasher, f.mockTx, f.mockOutbox)
 			actual, err := uc.Execute(tt.args.ctx, tt.args.in)
 
 			assertDomainErrorCode(t, err, tt.wantErrCode)
-			assertPublishErrLogged(t, logs, tt.wantPublishErrLogged)
 			if diff := cmp.Diff(tt.expected, actual); diff != "" {
 				t.Errorf("updateUser.Execute() mismatch (-want +got):\n%s", diff)
 			}

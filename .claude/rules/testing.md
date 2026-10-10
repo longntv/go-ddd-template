@@ -11,11 +11,12 @@ paths:
 ## What goes where
 | Code under test | Test kind | Location | Real | Mocked |
 |---|---|---|---|---|
-| Service (use case) | unit | `internal/service/<file>_test.go`, package `service` | logic | every gateway + `EventPublisher` |
+| Service (use case) | unit | `internal/service/<file>_test.go`, package `service` | logic | every gateway, `Transactor`, `EventOutbox` |
 | HTTP handler | unit | `internal/handler/http/server/*_test.go`, package `server_test` | gin binding + status mapping | use cases |
 | Entity / event routing | unit | next to the code, `_test` package | everything | nothing |
 | Datastore reader/writer | integration | `internal/infrastructure/datastore/<agg>_{reader,writer}_test.go` | GORM + Postgres | nothing |
-| HTTP end-to-end | integration | `test/integration/http/<agg>_test.go` | router → service → Postgres | `EventPublisher` and other external ports |
+| Outbox + relay | integration | `internal/infrastructure/datastore/outbox_test.go` | GORM + Postgres | `EventPublisher` |
+| HTTP end-to-end | integration | `test/integration/http/<agg>_test.go` | router → service → Postgres (events stop in `outbox_events`) | external ports other than the DB |
 
 ## Rules for every test
 - Table-driven with a **map**: `tests := map[string]testcase{...}`; name keys as behaviour
@@ -40,8 +41,8 @@ paths:
 - Fixtures live in `testdata/fixtures/<table>.yml` (YAML list of rows keyed by column). IDs are
   fixed, readable UUIDs (`11111111-…`). Never change or delete an existing fixture row other tests
   rely on; add new rows instead, and update count assertions such as `fixtureUserCount`.
-- Integration tests assert side effects in the DB (`CountUsers`, reading back via the reader), not
-  only the HTTP response.
+- Integration tests assert side effects in the DB (`CountUsers`, reading back via the reader, the
+  events in `outbox_events`), not only the HTTP response.
 
 ## Before finishing
 `make test` must pass. If datastore, migrations, fixtures or `test/integration` changed, also run

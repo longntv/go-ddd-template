@@ -8,11 +8,6 @@ import (
 
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=mock/user.go -source=user.go
 
-// Binder defines the interface for binding database to context.
-type Binder interface {
-	Bind(ctx context.Context) context.Context
-}
-
 // UserQueriesGateway defines the interface for querying users (CQRS read side).
 type UserQueriesGateway interface {
 	// Get retrieves a user by ID.
