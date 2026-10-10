@@ -17,5 +17,7 @@ coverage.html
 *.swp
 .DS_Store
 
-# Claude Code local-only settings
+# Claude Code: rules and skills are shared (overrides a global `.claude` ignore);
+# local settings are not.
+!.claude/
 .claude/settings.local.json
