@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
 	"github.com/longntv/go-ddd-template/internal/domain/event"
@@ -37,6 +39,8 @@ func Test_deleteUser_Execute(t *testing.T) {
 		prepare     func(*args, *fields)
 		args        args
 		wantErrCode string
+		// wantPublishErrLogged is the event type whose failed Publish must be logged; "" = no log.
+		wantPublishErrLogged string
 	}
 
 	tests := map[string]testcase{
@@ -56,6 +60,15 @@ func Test_deleteUser_Execute(t *testing.T) {
 				)
 			},
 			args: args{ctx: context.Background(), in: &input.DeleteUser{ID: userID}},
+		},
+		"publish failure does not fail the request": {
+			prepare: func(a *args, f *fields) {
+				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(user, nil).Times(1)
+				f.mockCommands.EXPECT().Delete(a.ctx, userID).Return(nil).Times(1)
+				f.mockPublisher.EXPECT().Publish(a.ctx, gomock.Any()).Return(errors.New("sns unavailable")).Times(1)
+			},
+			args:                 args{ctx: context.Background(), in: &input.DeleteUser{ID: userID}},
+			wantPublishErrLogged: event.UserDeletedEvent,
 		},
 		"user not found": {
 			prepare: func(a *args, f *fields) {
@@ -79,6 +92,7 @@ func Test_deleteUser_Execute(t *testing.T) {
 			t.Parallel()
 
 			ctrl := gomock.NewController(t)
+			logCore, logs := observer.New(zap.ErrorLevel)
 			f := &fields{
 				mockCommands:  mockgateway.NewMockUserCommandsGateway(ctrl),
 				mockQueries:   mockgateway.NewMockUserQueriesGateway(ctrl),
@@ -88,10 +102,11 @@ func Test_deleteUser_Execute(t *testing.T) {
 				tt.prepare(&tt.args, f)
 			}
 
-			uc := NewDeleteUser(f.mockCommands, f.mockQueries, f.mockPublisher)
+			uc := NewDeleteUser(f.mockCommands, f.mockQueries, f.mockPublisher, zap.New(logCore))
 			err := uc.Execute(tt.args.ctx, tt.args.in)
 
 			assertDomainErrorCode(t, err, tt.wantErrCode)
+			assertPublishErrLogged(t, logs, tt.wantPublishErrLogged)
 		})
 	}
 }

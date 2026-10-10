@@ -12,6 +12,7 @@ import (
 	cloudevents2 "github.com/longntv/go-ddd-template/internal/handler/cloudevents"
 	"github.com/longntv/go-ddd-template/internal/handler/health"
 	"github.com/longntv/go-ddd-template/internal/handler/http"
+	"github.com/longntv/go-ddd-template/internal/handler/http/middleware"
 	"github.com/longntv/go-ddd-template/internal/handler/http/server"
 	"github.com/longntv/go-ddd-template/internal/infrastructure/aws"
 	"github.com/longntv/go-ddd-template/internal/infrastructure/aws/sns"
@@ -42,14 +43,18 @@ func InitializeServer(cfg *config.Config, logger *zap.Logger) (*gin.Engine, func
 	client := sns.NewClient(awsConfig)
 	publisher := sns.NewPublisherFromConfig(client, cfg)
 	cloudeventsPublisher := cloudevents.NewPublisher(publisher)
-	createUser := service.NewCreateUser(userCommandsGateway, userQueriesGateway, bcryptHasher, cloudeventsPublisher)
+	createUser := service.NewCreateUser(userCommandsGateway, userQueriesGateway, bcryptHasher, cloudeventsPublisher, logger)
 	getUser := service.NewGetUser(userQueriesGateway)
 	listUsers := service.NewListUsers(userQueriesGateway)
-	updateUser := service.NewUpdateUser(userCommandsGateway, userQueriesGateway, bcryptHasher, cloudeventsPublisher)
-	deleteUser := service.NewDeleteUser(userCommandsGateway, userQueriesGateway, cloudeventsPublisher)
+	updateUser := service.NewUpdateUser(userCommandsGateway, userQueriesGateway, bcryptHasher, cloudeventsPublisher, logger)
+	deleteUser := service.NewDeleteUser(userCommandsGateway, userQueriesGateway, cloudeventsPublisher, logger)
 	handler := server.NewHandler(createUser, getUser, listUsers, updateUser, deleteUser)
 	healthHandler := health.NewHealthHandler()
-	engine := http.Router(handler, healthHandler)
+	corsConfig, err := middleware.ProvideCORSConfig(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	engine := http.Router(handler, healthHandler, corsConfig)
 	return engine, func() {
 	}, nil
 }

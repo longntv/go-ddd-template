@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+)
 
 // Not parallel: the cases use t.Setenv, which modifies process environment.
 
@@ -49,6 +53,28 @@ func TestLoad_SQSLimits(t *testing.T) {
 			if cfg.SQS.MaxMessages != tt.wantMaxMessages || cfg.SQS.WaitTimeSeconds != tt.wantWaitTime {
 				t.Errorf("SQS limits = (%d, %d), want (%d, %d)",
 					cfg.SQS.MaxMessages, cfg.SQS.WaitTimeSeconds, tt.wantMaxMessages, tt.wantWaitTime)
+			}
+		})
+	}
+}
+
+func Test_getEnvAsList(t *testing.T) {
+	tests := map[string]struct {
+		value    string
+		expected []string
+	}{
+		"blank is nil":            {value: "", expected: nil},
+		"single origin":           {value: "https://app.example.com", expected: []string{"https://app.example.com"}},
+		"trims and drops empties": {value: " https://a.example.com, ,https://b.example.com ,", expected: []string{"https://a.example.com", "https://b.example.com"}},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			const key = "TEST_GET_ENV_AS_LIST"
+			t.Setenv(key, tt.value)
+
+			if diff := cmp.Diff(tt.expected, getEnvAsList(key)); diff != "" {
+				t.Errorf("getEnvAsList(%q) mismatch (-want +got):\n%s", tt.value, diff)
 			}
 		})
 	}

@@ -10,6 +10,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
 	"github.com/longntv/go-ddd-template/internal/domain/event"
@@ -57,6 +59,8 @@ func Test_createUser_Execute(t *testing.T) {
 		args        args
 		expected    *output.CreateUser
 		wantErrCode string
+		// wantPublishErrLogged is the event type whose failed Publish must be logged; "" = no log.
+		wantPublishErrLogged string
 	}
 
 	tests := map[string]testcase{
@@ -114,8 +118,9 @@ func Test_createUser_Execute(t *testing.T) {
 				f.mockQueries.EXPECT().GetByEmail(a.ctx, in.Email).Return(createdUser, nil).Times(1)
 				f.mockPublisher.EXPECT().Publish(a.ctx, gomock.Any()).Return(errors.New("sns unavailable")).Times(1)
 			},
-			args:     args{ctx: context.Background(), in: in},
-			expected: &output.CreateUser{User: createdUser},
+			args:                 args{ctx: context.Background(), in: in},
+			expected:             &output.CreateUser{User: createdUser},
+			wantPublishErrLogged: event.UserCreatedEvent,
 		},
 		"email already exists": {
 			prepare: func(a *args, f *fields) {
@@ -173,6 +178,7 @@ func Test_createUser_Execute(t *testing.T) {
 			t.Parallel()
 
 			ctrl := gomock.NewController(t)
+			logCore, logs := observer.New(zap.ErrorLevel)
 			f := &fields{
 				mockCommands:  mockgateway.NewMockUserCommandsGateway(ctrl),
 				mockQueries:   mockgateway.NewMockUserQueriesGateway(ctrl),
@@ -183,10 +189,11 @@ func Test_createUser_Execute(t *testing.T) {
 				tt.prepare(&tt.args, f)
 			}
 
-			uc := NewCreateUser(f.mockCommands, f.mockQueries, f.mockHasher, f.mockPublisher)
+			uc := NewCreateUser(f.mockCommands, f.mockQueries, f.mockHasher, f.mockPublisher, zap.New(logCore))
 			actual, err := uc.Execute(tt.args.ctx, tt.args.in)
 
 			assertDomainErrorCode(t, err, tt.wantErrCode)
+			assertPublishErrLogged(t, logs, tt.wantPublishErrLogged)
 			if diff := cmp.Diff(tt.expected, actual); diff != "" {
 				t.Errorf("createUser.Execute() mismatch (-want +got):\n%s", diff)
 			}
@@ -212,6 +219,33 @@ func assertDomainErrorCode(t *testing.T, err error, wantCode string) {
 	}
 	if domainErr.Code != wantCode {
 		t.Errorf("error code = %s, want %s", domainErr.Code, wantCode)
+	}
+}
+
+// assertPublishErrLogged checks that a failed Publish of wantEventType was
+// logged exactly once with what is needed to replay it, and that nothing was
+// logged when wantEventType is empty.
+func assertPublishErrLogged(t *testing.T, logs *observer.ObservedLogs, wantEventType string) {
+	t.Helper()
+
+	entries := logs.FilterMessage("failed to publish event").All()
+	if wantEventType == "" {
+		if len(entries) != 0 {
+			t.Errorf("logged %d publish errors, want none", len(entries))
+		}
+		return
+	}
+	if len(entries) != 1 {
+		t.Fatalf("logged %d publish errors, want 1", len(entries))
+	}
+	fields := entries[0].ContextMap()
+	if diff := cmp.Diff(wantEventType, fields["event_type"]); diff != "" {
+		t.Errorf("logged event_type mismatch (-want +got):\n%s", diff)
+	}
+	for _, key := range []string{"event_id", "subject", "error"} {
+		if fields[key] == nil || fields[key] == "" {
+			t.Errorf("publish error log has no %s: %v", key, fields)
+		}
 	}
 }
 

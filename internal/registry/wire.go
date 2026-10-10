@@ -11,6 +11,7 @@ import (
 	handlercloudevents "github.com/longntv/go-ddd-template/internal/handler/cloudevents"
 	"github.com/longntv/go-ddd-template/internal/handler/health"
 	"github.com/longntv/go-ddd-template/internal/handler/http"
+	"github.com/longntv/go-ddd-template/internal/handler/http/middleware"
 	"github.com/longntv/go-ddd-template/internal/handler/http/server"
 	"github.com/longntv/go-ddd-template/internal/infrastructure/aws"
 	infracloudevents "github.com/longntv/go-ddd-template/internal/infrastructure/cloudevents"
@@ -41,6 +42,7 @@ func InitializeServer(
 		// Handlers
 		health.WireSet,
 		server.WireSet,
+		middleware.WireSet,
 		http.WireSet,
 	)
 

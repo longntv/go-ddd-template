@@ -12,13 +12,14 @@ import (
 func Router(
 	userHandler *server.Handler,
 	healthHandler *health.HealthHandler,
+	corsConfig middleware.CORSConfig,
 ) *gin.Engine {
 	r := gin.New()
 
 	// Middleware
 	r.Use(gin.Recovery())
 	r.Use(middleware.Logger())
-	r.Use(middleware.CORS())
+	r.Use(middleware.CORS(corsConfig))
 
 	// Health check
 	r.GET("/health", healthHandler.Handle)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"go.uber.org/zap"
+
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
 	"github.com/longntv/go-ddd-template/internal/domain/event"
 	"github.com/longntv/go-ddd-template/internal/domain/gateway"
@@ -19,12 +21,14 @@ func NewUpdateUser(
 	userQueriesGateway gateway.UserQueriesGateway,
 	passwordHasher gateway.PasswordHasher,
 	eventPublisher gateway.EventPublisher,
+	logger *zap.Logger,
 ) usecase.UpdateUser {
 	return &updateUser{
 		userCommandsGateway: userCommandsGateway,
 		userQueriesGateway:  userQueriesGateway,
 		passwordHasher:      passwordHasher,
 		eventPublisher:      eventPublisher,
+		logger:              logger,
 	}
 }
 
@@ -34,6 +38,7 @@ type updateUser struct {
 	userQueriesGateway  gateway.UserQueriesGateway
 	passwordHasher      gateway.PasswordHasher
 	eventPublisher      gateway.EventPublisher
+	logger              *zap.Logger
 }
 
 func (s *updateUser) Execute(ctx context.Context, in *input.UpdateUser) (*output.UpdateUser, error) {
@@ -81,10 +86,7 @@ func (s *updateUser) Execute(ctx context.Context, in *input.UpdateUser) (*output
 			Email: updatedUser.Email,
 		},
 	)
-	if err := s.eventPublisher.Publish(ctx, userEvent); err != nil {
-		// Log error but don't fail the request
-		_ = err
-	}
+	publishBestEffort(ctx, s.eventPublisher, s.logger, userEvent)
 
 	return &output.UpdateUser{User: updatedUser}, nil
 }
