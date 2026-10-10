@@ -58,7 +58,7 @@ func main() {
 	)
 
 	// Initialize server from the registry.
-	router, cleanup, err := registry.InitializeServer(cfg, logger)
+	server, cleanup, err := registry.InitializeServer(cfg, logger)
 	if err != nil {
 		logger.Fatal("failed to initialize server", zap.Error(err))
 	}
@@ -74,7 +74,7 @@ func main() {
 	// Run HTTP server.
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%s", cfg.App.Port),
-		Handler:           router,
+		Handler:           server.Router,
 		ReadHeaderTimeout: readHeaderTimeout,
 		BaseContext: func(net.Listener) context.Context {
 			return egCtx
@@ -93,8 +93,18 @@ func main() {
 		return nil
 	})
 
-	// Wait for interrupt signal or error from server.
-	<-ctx.Done()
+	// Run the outbox relay: it publishes the events that requests saved.
+	eg.Go(func() error {
+		logger.Info("outbox relay running")
+		if err := server.OutboxRelay.Run(egCtx); err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
+		logger.Info("outbox relay stopped")
+		return nil
+	})
+
+	// Wait for an interrupt signal, or for the server or relay to fail.
+	<-egCtx.Done()
 	logger.Info("received shutdown signal, initiating graceful shutdown")
 	stop()
 

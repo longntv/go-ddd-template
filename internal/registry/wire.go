@@ -3,7 +3,6 @@
 package registry
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 	"go.uber.org/zap"
 
@@ -22,11 +21,12 @@ import (
 
 //go:generate go run github.com/google/wire/cmd/wire@v0.6.0
 
-// InitializeServer initializes the HTTP server with the necessary dependencies.
+// InitializeServer initializes the HTTP server and outbox relay with the
+// necessary dependencies.
 func InitializeServer(
 	cfg *config.Config,
 	logger *zap.Logger,
-) (*gin.Engine, func(), error) {
+) (*Server, func(), error) {
 	wire.Build(
 		// Infrastructure
 		aws.WireSet,
@@ -44,6 +44,8 @@ func InitializeServer(
 		server.WireSet,
 		middleware.WireSet,
 		http.WireSet,
+
+		wire.Struct(new(Server), "*"),
 	)
 
 	return nil, nil, nil

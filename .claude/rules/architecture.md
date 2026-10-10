@@ -14,7 +14,7 @@ paths:
   already uses. Never gin, gorm, aws or anything under `internal/infrastructure`.
 - `internal/service/**` depends on **ports only**: `domain/gateway` interfaces, `domain/entity`,
   `domain/event`, `domain/model`, `usecase/{input,output}`, plus `*zap.Logger` (injected, never the
-  global) for errors it handles instead of returning. Never import `internal/infrastructure/**`
+  global) if it handles an error instead of returning it. Never import `internal/infrastructure/**`
   or `internal/handler/**`. If a service needs something external, add a port in `domain/gateway`
   and bind the implementation with `wire.Bind`.
 - `internal/handler/**` talks to use-case interfaces in `internal/usecase`, never to services or
@@ -30,8 +30,8 @@ paths:
 | Events | `domain/event/<agg>_event.go` (shared envelope: `domain_event.go`) | `<Agg>EventTypePrefix`, `<Agg><Verb>Event` constants, `<Agg>EventData` |
 | Use case | `usecase/usecase.go` | `type <Verb><Agg> interface { Execute(ctx, *input.<Verb><Agg>) (*output.<Verb><Agg>, error) }` |
 | DTOs | `usecase/input/<agg>.go`, `usecase/output/<agg>.go` | struct per use case, `validate:` tags on input |
-| Service | `service/<agg>_<verb>er.go` (`user_creator.go`, `user_lister.go`) | `New<Verb><Agg>(ports..., logger *zap.Logger) usecase.<Verb><Agg>` (logger only when it publishes); implementation struct unexported |
-| Datastore | `datastore/<agg>_entity.go`, `_reader.go`, `_writer.go` | `New<Agg>Reader(*gorm.DB) gateway.<Agg>QueriesGateway`, `New<Agg>Writer` |
+| Service | `service/<agg>_<verb>er.go` (`user_creator.go`, `user_lister.go`) | `New<Verb><Agg>(ports...) usecase.<Verb><Agg>`; a use case that changes state also takes `gateway.Transactor` and `gateway.EventOutbox` last; implementation struct unexported |
+| Datastore | `datastore/<agg>_entity.go`, `_reader.go`, `_writer.go` | `New<Agg>Reader(*gorm.DB) gateway.<Agg>QueriesGateway`, `New<Agg>Writer`; every query goes through `conn(ctx, r.db)` so it joins the caller's transaction |
 | HTTP | `handler/http/server/<agg>_<verb>.go` (`user_create.go`) | method on a handler struct; routes in `handler/http/router.go` |
 | Migration | `database/migrations/NNNNNN_<desc>.up.sql` + `.down.sql` | always both |
 
@@ -48,19 +48,23 @@ paths:
 - Every package with constructors exports `var WireSet = wire.NewSet(...)`.
 - Add new providers to the package `WireSet`, then run `make generate`. Never hand-edit `wire_gen.go`.
 - `internal/registry/wire.go` builds production graphs; `test/integration/registry/wire.go` builds the
-  test graph, takes external dependencies (DB, password hasher, publisher, logger) as **parameters**
+  test graph, takes external dependencies (DB, password hasher) as **parameters**
   and lists datastore constructors explicitly.
   When a service gains a new dependency, update both injectors.
 
 ## Events
 - Event type strings are constants in `domain/event` (`com.go-ddd-template.<agg>.<past-tense-verb>`, built as `<Agg>EventTypePrefix + ".<verb>"`); never
   inline the string anywhere else.
-- Every type a service publishes must be registered in `ProvideConfiguredMux`
+- Every event type a service emits must be registered in `ProvideConfiguredMux`
   (`infrastructure/cloudevents/provider.go`) using those constants.
 - Events are `event.DomainEvent`, built with
   `event.NewDomainEvent(<type>, event.Source, <aggID>, &event.<Agg>EventData{...})`; never inline the
   source string. Payloads carry no secrets.
-- Publishing goes through `gateway.EventPublisher`; services call `publishBestEffort`.
+- **Transactional outbox.** Services never publish directly. A state change and its event are saved
+  together: inside `s.transactor.RunInTx(ctx, func(ctx context.Context) error {...})`, call the
+  commands port, then `s.eventOutbox.Add(ctx, evt)`, both with the **transaction's** ctx. The
+  `datastore.OutboxRelay` (run by `cmd/server`) is the only caller of `gateway.EventPublisher`.
+  Delivery is at least once: consumers deduplicate by event ID.
 
 ## Interfaces and mocks
 - Port and use-case interface files carry `//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=mock/<file>.go -source=<file>.go`.

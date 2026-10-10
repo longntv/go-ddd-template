@@ -3,13 +3,12 @@
 package http_test
 
 import (
-	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/longntv/go-ddd-template/internal/domain/event"
@@ -20,19 +19,14 @@ const (
 	unknownID = "99999999-9999-9999-9999-999999999999"
 )
 
-// expectPublished expects exactly one published event of the given type.
-func expectPublished(t *testing.T, h *HTTPTestHelper, eventType string) {
+// expectNewOutboxEvents checks that the request saved exactly want to the
+// outbox: before is h.OutboxEvents taken before the request.
+func expectNewOutboxEvents(t *testing.T, h *HTTPTestHelper, before []OutboxEvent, want ...OutboxEvent) {
 	t.Helper()
 
-	h.mockPublisher.EXPECT().
-		Publish(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, evt *event.DomainEvent) error {
-			if evt.Type != eventType {
-				t.Errorf("published event type = %s, want %s", evt.Type, eventType)
-			}
-			return nil
-		}).
-		Times(1)
+	if diff := cmp.Diff(slices.Concat(before, want), h.OutboxEvents(t)); diff != "" {
+		t.Errorf("outbox events mismatch (-want +got):\n%s", diff)
+	}
 }
 
 func Test_Integration_CreateUser(t *testing.T) {
@@ -40,23 +34,21 @@ func Test_Integration_CreateUser(t *testing.T) {
 
 	type testcase struct {
 		body           string
-		prepare        func(t *testing.T, h *HTTPTestHelper)
 		wantStatus     int
 		wantUserCount  int64
 		wantBodyFields map[string]any
+		wantEventType  string // saved to the outbox about the new user; "" = none
 	}
 
 	tests := map[string]testcase{
-		"creates user, stores it and publishes UserCreated": {
-			body: `{"name":"Dave","email":"dave@example.com","password":"password123"}`,
-			prepare: func(t *testing.T, h *HTTPTestHelper) {
-				expectPublished(t, h, event.UserCreatedEvent)
-			},
+		"creates user, stores it and saves UserCreated to the outbox": {
+			body:           `{"name":"Dave","email":"dave@example.com","password":"password123"}`,
+			wantEventType:  event.UserCreatedEvent,
 			wantStatus:     http.StatusCreated,
 			wantUserCount:  4,
 			wantBodyFields: map[string]any{"name": "Dave", "email": "dave@example.com"},
 		},
-		"duplicate email returns 409 and stores nothing": {
+		"duplicate email returns 409 and saves nothing": {
 			body:          `{"name":"Alice 2","email":"alice@example.com","password":"password123"}`,
 			wantStatus:    http.StatusConflict,
 			wantUserCount: 3,
@@ -73,9 +65,7 @@ func Test_Integration_CreateUser(t *testing.T) {
 			t.Parallel()
 
 			h := NewHTTPTestHelper(t)
-			if tt.prepare != nil {
-				tt.prepare(t, h)
-			}
+			outboxBefore := h.OutboxEvents(t)
 
 			status, body := h.Do(t, http.MethodPost, "/api/v1/users", tt.body)
 
@@ -88,6 +78,13 @@ func Test_Integration_CreateUser(t *testing.T) {
 			if got := h.CountUsers(t); got != tt.wantUserCount {
 				t.Errorf("users in db = %d, want %d", got, tt.wantUserCount)
 			}
+
+			var wantEvents []OutboxEvent
+			if tt.wantEventType != "" {
+				id, _ := body["id"].(string)
+				wantEvents = append(wantEvents, OutboxEvent{Type: tt.wantEventType, Subject: id})
+			}
+			expectNewOutboxEvents(t, h, outboxBefore, wantEvents...)
 		})
 	}
 }
@@ -97,18 +94,17 @@ func Test_Integration_PasswordIsStoredHashed(t *testing.T) {
 
 	tests := map[string]struct {
 		method, path, body, email, password string
-		event                               string
 		wantStatus                          int
 	}{
 		"on create": {
 			method: http.MethodPost, path: "/api/v1/users", email: "gina@example.com", password: "gina-password",
-			body:  `{"name":"Gina","email":"gina@example.com","password":"gina-password"}`,
-			event: event.UserCreatedEvent, wantStatus: http.StatusCreated,
+			body:       `{"name":"Gina","email":"gina@example.com","password":"gina-password"}`,
+			wantStatus: http.StatusCreated,
 		},
 		"on update": {
 			method: http.MethodPut, path: "/api/v1/users/" + aliceID, email: "alice@example.com", password: "new-alice-password",
-			body:  `{"name":"Alice","email":"alice@example.com","password":"new-alice-password"}`,
-			event: event.UserUpdatedEvent, wantStatus: http.StatusOK,
+			body:       `{"name":"Alice","email":"alice@example.com","password":"new-alice-password"}`,
+			wantStatus: http.StatusOK,
 		},
 	}
 
@@ -117,7 +113,6 @@ func Test_Integration_PasswordIsStoredHashed(t *testing.T) {
 			t.Parallel()
 
 			h := NewHTTPTestHelper(t)
-			expectPublished(t, h, tt.event)
 
 			status, body := h.Do(t, tt.method, tt.path, tt.body)
 			expectStatus(t, status, tt.wantStatus, body)
@@ -138,7 +133,7 @@ func Test_Integration_PasswordIsStoredHashed(t *testing.T) {
 
 // Test_Integration_RejectsPasswordsOverBcryptByteLimit covers passwords that pass
 // the 72-character binding but exceed bcrypt's 72-byte limit: they must get
-// 400, not 500, and nothing must be stored or published.
+// 400, not 500, and nothing must be stored or saved to the outbox.
 func Test_Integration_RejectsPasswordsOverBcryptByteLimit(t *testing.T) {
 	t.Parallel()
 
@@ -163,6 +158,7 @@ func Test_Integration_RejectsPasswordsOverBcryptByteLimit(t *testing.T) {
 			h := NewHTTPTestHelper(t)
 			usersBefore := h.CountUsers(t)
 			aliceHashBefore := h.PasswordHash(t, "alice@example.com")
+			outboxBefore := h.OutboxEvents(t)
 
 			status, body := h.Do(t, tt.method, tt.path, tt.body)
 			expectStatus(t, status, http.StatusBadRequest, body)
@@ -173,6 +169,7 @@ func Test_Integration_RejectsPasswordsOverBcryptByteLimit(t *testing.T) {
 			if got := h.PasswordHash(t, "alice@example.com"); got != aliceHashBefore {
 				t.Error("alice's password hash changed")
 			}
+			expectNewOutboxEvents(t, h, outboxBefore)
 		})
 	}
 }
@@ -236,7 +233,7 @@ func Test_Integration_UpdateUser(t *testing.T) {
 	t.Parallel()
 
 	h := NewHTTPTestHelper(t)
-	expectPublished(t, h, event.UserUpdatedEvent)
+	outboxBefore := h.OutboxEvents(t)
 
 	status, body := h.Do(t, http.MethodPut, "/api/v1/users/"+aliceID,
 		`{"name":"Alice B","email":"alice.b@example.com","password":"password123"}`)
@@ -248,13 +245,14 @@ func Test_Integration_UpdateUser(t *testing.T) {
 	if body["name"] != "Alice B" || body["email"] != "alice.b@example.com" {
 		t.Errorf("after update got name=%v email=%v", body["name"], body["email"])
 	}
+	expectNewOutboxEvents(t, h, outboxBefore, OutboxEvent{Type: event.UserUpdatedEvent, Subject: aliceID})
 }
 
 func Test_Integration_DeleteUser(t *testing.T) {
 	t.Parallel()
 
 	h := NewHTTPTestHelper(t)
-	expectPublished(t, h, event.UserDeletedEvent)
+	outboxBefore := h.OutboxEvents(t)
 
 	status, body := h.Do(t, http.MethodDelete, "/api/v1/users/"+aliceID, "")
 	expectStatus(t, status, http.StatusNoContent, body)
@@ -265,4 +263,5 @@ func Test_Integration_DeleteUser(t *testing.T) {
 	if got := h.CountUsers(t); got != 2 {
 		t.Errorf("users in db = %d, want 2", got)
 	}
+	expectNewOutboxEvents(t, h, outboxBefore, OutboxEvent{Type: event.UserDeletedEvent, Subject: aliceID})
 }

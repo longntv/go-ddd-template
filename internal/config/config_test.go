@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -75,6 +76,29 @@ func Test_getEnvAsList(t *testing.T) {
 
 			if diff := cmp.Diff(tt.expected, getEnvAsList(key)); diff != "" {
 				t.Errorf("getEnvAsList(%q) mismatch (-want +got):\n%s", tt.value, diff)
+			}
+		})
+	}
+}
+
+func Test_getEnvAsDuration(t *testing.T) {
+	tests := map[string]struct {
+		value    string // "" leaves the variable unset
+		expected time.Duration
+	}{
+		"unset uses default":       {value: "", expected: time.Second},
+		"valid duration":           {value: "250ms", expected: 250 * time.Millisecond},
+		"bare number uses default": {value: "5", expected: time.Second},
+		"invalid uses default":     {value: "soon", expected: time.Second},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			const key = "TEST_GET_ENV_AS_DURATION"
+			t.Setenv(key, tt.value)
+
+			if got := getEnvAsDuration(key, time.Second); got != tt.expected {
+				t.Errorf("getEnvAsDuration(%q) = %s, want %s", tt.value, got, tt.expected)
 			}
 		})
 	}

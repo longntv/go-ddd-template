@@ -13,7 +13,7 @@ give every test its own Postgres database.
 - **Layered architecture.** Domain, use case, service, infrastructure and handler layers with dependencies pointing inward.
 - **CQRS ports.** Separate query and command gateways per aggregate.
 - **Two binaries.** `cmd/server` (Gin HTTP API) and `cmd/subscriber` (SQS long-poll consumer), both with graceful shutdown.
-- **Domain events.** CloudEvents published to SNS and routed by type in the subscriber.
+- **Domain events with a transactional outbox.** Services save each event in the same transaction as the change; a relay publishes them to SNS as CloudEvents (at least once, with retries), and the subscriber routes them by type.
 - **Secure defaults.** Passwords are hashed with bcrypt behind a `PasswordHasher` port; CORS allows only the origins in `CORS_ALLOWED_ORIGINS`; the HTTP server sets a header read timeout.
 - **[Wire](https://github.com/google/wire) dependency injection.** Generated, no reflection; a separate injector for tests.
 - **Testing.** Table-driven unit tests with gomock and go-cmp, plus integration tests on per-test Postgres clones (`CREATE DATABASE … TEMPLATE`).
@@ -30,9 +30,12 @@ flowchart LR
     UC -. implemented by .-> S[services]
     S --> Q[QueriesGateway]
     S --> C[CommandsGateway]
-    S --> EP[EventPublisher]
+    S --> TX[Transactor]
+    S --> OB[EventOutbox]
+    RL[Outbox relay] --> EP[EventPublisher]
   end
-  Q & C -. GORM .-> PG[(Postgres)]
+  Q & C & OB -. one transaction .-> PG[(Postgres)]
+  PG -. pending events .-> RL
   EP -. CloudEvent JSON .-> SNS[[SNS topic]] --> SQS[[SQS queue]]
   subgraph subscriber[cmd/subscriber]
     SUB[Subscriber loop] --> MUX[Mux: event type → handler] --> EH[event handlers]
@@ -42,6 +45,24 @@ flowchart LR
 
 Services depend only on interfaces defined in the domain (`internal/domain/gateway`).
 Infrastructure implements them, and Wire binds the implementations at build time.
+
+### Events: transactional outbox
+
+A service writes the aggregate change and its event (`EventOutbox.Add`) inside one
+`Transactor.RunInTx`, so an event is stored if and only if the change is. `cmd/server` also runs the
+outbox relay, which publishes pending rows of `outbox_events` to SNS and marks them published.
+
+- **At least once.** If the process dies between publishing and recording it, the event is published
+  again. Consumers deduplicate by CloudEvent `id`. A graceful shutdown commits what was already
+  published, so deploys do not cause duplicates.
+- **Retries.** A failed publish (or one taking over 10s) is logged and retried with exponential
+  backoff (1s, 2s, 4s, … up to 5 minutes); later events are not held back by it.
+- **Replicas and order.** Every replica runs a relay, but a Postgres advisory lock lets only one work
+  at a time; the others stand by. Events go out in the order they were saved, so the events of one
+  aggregate arrive in order as long as publishing succeeds. Across aggregates, and after a retry,
+  consumers must not rely on order.
+- **Tuning.** `OUTBOX_POLL_INTERVAL` (default `1s`) and `OUTBOX_BATCH_SIZE` (default `100`).
+  Published rows stay in the table; delete old ones on a schedule if it grows too large.
 
 ## Project layout
 
@@ -102,11 +123,11 @@ curl -s -X POST localhost:8080/api/v1/users \
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Liveness check |
-| `POST` | `/api/v1/users` | Create a user; publishes `com.go-ddd-template.user.created` |
+| `POST` | `/api/v1/users` | Create a user; emits `com.go-ddd-template.user.created` |
 | `GET` | `/api/v1/users?page=1&limit=10` | List users (`limit` 1–100; out-of-range values fall back to 10) |
 | `GET` | `/api/v1/users/:id` | Get a user (404 if missing) |
-| `PUT` | `/api/v1/users/:id` | Update a user; publishes `…user.updated` |
-| `DELETE` | `/api/v1/users/:id` | Delete a user; publishes `…user.deleted` |
+| `PUT` | `/api/v1/users/:id` | Update a user; emits `…user.updated` |
+| `DELETE` | `/api/v1/users/:id` | Delete a user; emits `…user.deleted` |
 
 Configuration is read from environment variables; [`.env.example`](.env.example) lists them all with local defaults.
 
@@ -132,7 +153,8 @@ Table-driven tests next to the code, using gomock mocks of the ports
 
 | What | Where | Mocks |
 |---|---|---|
-| Use cases | `internal/service/*_test.go` | gateways + `EventPublisher` |
+| Use cases | `internal/service/*_test.go` | gateways, `Transactor`, `EventOutbox` |
+| Outbox relay backoff | `internal/infrastructure/datastore/outbox_relay_internal_test.go` | none |
 | HTTP handlers | `internal/handler/http/server/handler_test.go` | use cases, via `httptest` |
 | Event routing | `internal/infrastructure/cloudevents/provider_test.go` | none |
 | Entities | `internal/domain/entity/*_test.go` | none |
@@ -147,8 +169,11 @@ These files carry `//go:build integration` and need Postgres. Use `make docker/u
 2. Each test gets its own copy via `CREATE DATABASE … TEMPLATE`, dropped on cleanup. Tests run in
    parallel without sharing state, and nothing is left behind.
 3. Reader tests share one read-only copy. Writer tests and HTTP tests take a fresh copy per case.
-4. `test/integration/http` drives the real router, services and datastore through a test Wire
-   injector that takes the database and a mock `EventPublisher` as parameters, so no AWS is needed.
+4. `internal/infrastructure/datastore/outbox_test.go` covers transactions, the outbox and the relay
+   (ordering, retries, cancellation, and two relays running at once) with a mock `EventPublisher`.
+5. `test/integration/http` drives the real router, services and datastore through a test Wire
+   injector that takes the database as a parameter. Tests check the rows saved to `outbox_events`,
+   so no AWS is needed.
 
 ## Using with Claude Code
 
@@ -170,7 +195,6 @@ Tracked as [issues](https://github.com/longntv/go-ddd-template/issues):
 - [#1](https://github.com/longntv/go-ddd-template/issues/1) Update use case should load, mutate and save the existing aggregate
 - [#2](https://github.com/longntv/go-ddd-template/issues/2) Run use-case input validation
 - [#3](https://github.com/longntv/go-ddd-template/issues/3) Subscriber dead-letter handling and concurrency
-- [#4](https://github.com/longntv/go-ddd-template/issues/4) Transactional outbox for domain events
 
 ## Contributing
 

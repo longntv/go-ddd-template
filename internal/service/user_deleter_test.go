@@ -7,8 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/longntv/go-ddd-template/internal/domain/entity"
 	"github.com/longntv/go-ddd-template/internal/domain/event"
@@ -27,9 +25,10 @@ func Test_deleteUser_Execute(t *testing.T) {
 	)
 
 	type fields struct {
-		mockCommands  *mockgateway.MockUserCommandsGateway
-		mockQueries   *mockgateway.MockUserQueriesGateway
-		mockPublisher *mockgateway.MockEventPublisher
+		mockCommands *mockgateway.MockUserCommandsGateway
+		mockQueries  *mockgateway.MockUserQueriesGateway
+		mockTx       *mockgateway.MockTransactor
+		mockOutbox   *mockgateway.MockEventOutbox
 	}
 	type args struct {
 		ctx context.Context
@@ -39,36 +38,39 @@ func Test_deleteUser_Execute(t *testing.T) {
 		prepare     func(*args, *fields)
 		args        args
 		wantErrCode string
-		// wantPublishErrLogged is the event type whose failed Publish must be logged; "" = no log.
-		wantPublishErrLogged string
 	}
 
 	tests := map[string]testcase{
-		"successfully delete user and publish event": {
+		"successfully delete user and add event to outbox in one transaction": {
 			prepare: func(a *args, f *fields) {
 				gomock.InOrder(
 					f.mockQueries.EXPECT().Get(a.ctx, userID).Return(user, nil),
-					f.mockCommands.EXPECT().Delete(a.ctx, userID).Return(nil),
-					f.mockPublisher.EXPECT().
-						Publish(a.ctx, gomock.Any()).
-						DoAndReturn(func(_ context.Context, evt *event.DomainEvent) error {
-							if evt.Type != event.UserDeletedEvent {
-								t.Errorf("Publish() event type = %s, want %s", evt.Type, event.UserDeletedEvent)
-							}
-							return nil
-						}),
+					expectTx(f.mockTx, a.ctx),
+					f.mockCommands.EXPECT().Delete(txCtx, userID).Return(nil),
+					expectOutboxAdd(t, f.mockOutbox, event.UserDeletedEvent, user),
 				)
 			},
 			args: args{ctx: context.Background(), in: &input.DeleteUser{ID: userID}},
 		},
-		"publish failure does not fail the request": {
+		"outbox Add returns error": {
 			prepare: func(a *args, f *fields) {
 				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(user, nil).Times(1)
-				f.mockCommands.EXPECT().Delete(a.ctx, userID).Return(nil).Times(1)
-				f.mockPublisher.EXPECT().Publish(a.ctx, gomock.Any()).Return(errors.New("sns unavailable")).Times(1)
+				expectTx(f.mockTx, a.ctx)
+				f.mockCommands.EXPECT().Delete(txCtx, userID).Return(nil).Times(1)
+				f.mockOutbox.EXPECT().Add(txCtx, gomock.Any()).Return(errors.New("database connection error")).Times(1)
 			},
-			args:                 args{ctx: context.Background(), in: &input.DeleteUser{ID: userID}},
-			wantPublishErrLogged: event.UserDeletedEvent,
+			args:        args{ctx: context.Background(), in: &input.DeleteUser{ID: userID}},
+			wantErrCode: "INTERNAL",
+		},
+		"commit fails": {
+			prepare: func(a *args, f *fields) {
+				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(user, nil).Times(1)
+				expectTxCommitFails(f.mockTx, a.ctx, errors.New("database connection error"))
+				f.mockCommands.EXPECT().Delete(txCtx, userID).Return(nil).Times(1)
+				f.mockOutbox.EXPECT().Add(txCtx, gomock.Any()).Return(nil).Times(1)
+			},
+			args:        args{ctx: context.Background(), in: &input.DeleteUser{ID: userID}},
+			wantErrCode: "INTERNAL",
 		},
 		"user not found": {
 			prepare: func(a *args, f *fields) {
@@ -80,7 +82,8 @@ func Test_deleteUser_Execute(t *testing.T) {
 		"Delete returns error": {
 			prepare: func(a *args, f *fields) {
 				f.mockQueries.EXPECT().Get(a.ctx, userID).Return(user, nil).Times(1)
-				f.mockCommands.EXPECT().Delete(a.ctx, userID).Return(errors.New("database connection error")).Times(1)
+				expectTx(f.mockTx, a.ctx)
+				f.mockCommands.EXPECT().Delete(txCtx, userID).Return(errors.New("database connection error")).Times(1)
 			},
 			args:        args{ctx: context.Background(), in: &input.DeleteUser{ID: userID}},
 			wantErrCode: "INTERNAL",
@@ -92,21 +95,20 @@ func Test_deleteUser_Execute(t *testing.T) {
 			t.Parallel()
 
 			ctrl := gomock.NewController(t)
-			logCore, logs := observer.New(zap.ErrorLevel)
 			f := &fields{
-				mockCommands:  mockgateway.NewMockUserCommandsGateway(ctrl),
-				mockQueries:   mockgateway.NewMockUserQueriesGateway(ctrl),
-				mockPublisher: mockgateway.NewMockEventPublisher(ctrl),
+				mockCommands: mockgateway.NewMockUserCommandsGateway(ctrl),
+				mockQueries:  mockgateway.NewMockUserQueriesGateway(ctrl),
+				mockTx:       mockgateway.NewMockTransactor(ctrl),
+				mockOutbox:   mockgateway.NewMockEventOutbox(ctrl),
 			}
 			if tt.prepare != nil {
 				tt.prepare(&tt.args, f)
 			}
 
-			uc := NewDeleteUser(f.mockCommands, f.mockQueries, f.mockPublisher, zap.New(logCore))
+			uc := NewDeleteUser(f.mockCommands, f.mockQueries, f.mockTx, f.mockOutbox)
 			err := uc.Execute(tt.args.ctx, tt.args.in)
 
 			assertDomainErrorCode(t, err, tt.wantErrCode)
-			assertPublishErrLogged(t, logs, tt.wantPublishErrLogged)
 		})
 	}
 }

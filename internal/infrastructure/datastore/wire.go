@@ -9,10 +9,11 @@ import (
 var WireSet = wire.NewSet(
 	NewDB,
 	ProvideGormDB,
-	NewBinder,
 	NewTransactor,
 	NewUserReader,
 	NewUserWriter,
+	NewEventOutbox,
+	NewOutboxRelay,
 )
 
 // ProvideGormDB provides the underlying gorm.DB.

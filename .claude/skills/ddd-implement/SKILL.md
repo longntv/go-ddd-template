@@ -64,7 +64,7 @@ const (
 )
 ```
 Add an `<Agg>EventData` payload struct (JSON tags, no secrets). Events themselves are the shared
-`event.DomainEvent` (`domain_event.go`), so the publisher port needs no change:
+`event.DomainEvent` (`domain_event.go`), so the outbox and publisher ports need no change:
 ```go
 evt := event.NewDomainEvent(event.OrderCreatedEvent, event.Source, order.ID.String(), &event.OrderEventData{...})
 ```
@@ -75,14 +75,29 @@ evt := event.NewDomainEvent(event.OrderCreatedEvent, event.Source, order.ID.Stri
 
 ## 5. Service — `internal/service/<agg>_<verb>er.go`
 Mirror `service/user_creator.go`:
-- Constructor takes **ports only** (plus `*zap.Logger` last when it publishes) and returns the
-  use-case interface; the struct is unexported.
+- Constructor takes **ports only** and returns the use-case interface; the struct is unexported. A
+  use case that changes state takes `gateway.Transactor` and `gateway.EventOutbox` last.
 - Map every failure to `model.NewDomainError(code, message, cause)`:
   not found → `<AGG>_NOT_FOUND`, conflict → `<AGG>_EXISTS`, everything else → `INTERNAL`.
-- Check existence with the queries port, mutate through the entity, persist with the commands port,
-  re-read if the response needs DB-generated fields, then publish the event with
-  `publishBestEffort(ctx, s.eventPublisher, s.logger, evt)`: the change is saved, so a publish
-  failure is logged, not returned.
+- Check existence with the queries port and mutate through the entity. Then, in **one transaction**,
+  persist with the commands port, re-read if the response needs DB-generated fields, and add the
+  event to the outbox. Use the ctx the transaction passes in for every call inside it:
+  ```go
+  err = s.transactor.RunInTx(ctx, func(ctx context.Context) error {
+      if err := s.orderCommandsGateway.Create(ctx, order); err != nil {
+          return fmt.Errorf("create order: %w", err)
+      }
+      evt := event.NewDomainEvent(event.OrderCreatedEvent, event.Source, order.ID.String(), &event.OrderEventData{...})
+      if err := s.eventOutbox.Add(ctx, evt); err != nil {
+          return fmt.Errorf("add %s event to outbox: %w", evt.Type, err)
+      }
+      return nil
+  })
+  if err != nil {
+      return nil, model.NewDomainError("INTERNAL", "failed to create order", err)
+  }
+  ```
+  The outbox relay publishes the event after the commit; never call `EventPublisher` from a service.
 - Add the constructor to `service.WireSet` in `service/wire.go`.
 
 ## 6. Datastore — `internal/infrastructure/datastore/`
@@ -90,6 +105,8 @@ Mirror the three user files:
 - `<agg>_entity.go`: GORM model with `TableName()` and `ToDomain()`.
 - `<agg>_reader.go`: `New<Agg>Reader(db *gorm.DB) gateway.<Agg>QueriesGateway`; translate
   `gorm.ErrRecordNotFound` into the domain sentinel with `errors.Is`.
+- Readers and writers start every query with `conn(ctx, r.db)` (not `r.db.WithContext(ctx)`), so
+  they join the transaction opened by `Transactor.RunInTx`.
 - `<agg>_writer.go`: `New<Agg>Writer(db *gorm.DB) gateway.<Agg>CommandsGateway`; return
   `gorm.ErrRecordNotFound` when `RowsAffected == 0` on update/delete.
 - Add both constructors to `datastore.WireSet` **and** list them in `test/integration/registry/wire.go`,
@@ -131,6 +148,7 @@ Mirror the three user files:
 - [ ] No service imports `internal/infrastructure` or `internal/handler`.
 - [ ] Every new constructor is in a `WireSet`; `wire_gen.go` was regenerated, not edited.
 - [ ] Every new error code is mapped in `handleError`.
-- [ ] Every published event type is registered in `ProvideConfiguredMux`.
+- [ ] Every event type is registered in `ProvideConfiguredMux`.
+- [ ] State changes and their events are saved in one `RunInTx`, using the transaction's ctx.
 - [ ] Migration has both `up` and `down`.
 - [ ] Unit tests and integration tests added; `make test` green.

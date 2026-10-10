@@ -2,6 +2,8 @@ package datastore
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -29,7 +31,13 @@ func NewDB(cfg *appconfig.Config) (*DB, error) {
 	)
 
 	gormConfig := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		// ParameterizedQueries keeps values (emails, event payloads) out of the SQL log.
+		Logger: logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
+			SlowThreshold:        200 * time.Millisecond,
+			LogLevel:             logger.Info,
+			Colorful:             true,
+			ParameterizedQueries: true,
+		}),
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), gormConfig)

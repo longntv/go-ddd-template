@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config holds the application configuration.
@@ -15,6 +16,7 @@ type Config struct {
 	SNS           SNSConfig
 	SQS           SQSConfig
 	Bedrock       BedrockConfig
+	Outbox        OutboxConfig
 	Observability ObservabilityConfig
 }
 
@@ -58,6 +60,10 @@ func Load() *Config {
 		Bedrock: BedrockConfig{
 			Region:  getEnv("BEDROCK_REGION", "ap-northeast-1"),
 			ModelID: getEnv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
+		},
+		Outbox: OutboxConfig{
+			PollInterval: getEnvAsDuration("OUTBOX_POLL_INTERVAL", time.Second),
+			BatchSize:    getEnvAsInt("OUTBOX_BATCH_SIZE", 100),
 		},
 		Observability: ObservabilityConfig{
 			DataDog: DataDogConfig{
@@ -111,6 +117,17 @@ func getEnvAsList(key string) []string {
 		}
 	}
 	return list
+}
+
+// getEnvAsDuration parses a Go duration such as "500ms" or "2s". Unset or
+// invalid returns defaultValue.
+func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if d, err := time.ParseDuration(value); err == nil {
+			return d
+		}
+	}
+	return defaultValue
 }
 
 func getEnvAsBool(key string, defaultValue bool) bool {

@@ -9,25 +9,21 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/mock/gomock"
-	"go.uber.org/zap/zaptest"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
 	"github.com/longntv/go-ddd-template/internal/infrastructure/crypto"
 	"github.com/longntv/go-ddd-template/internal/testutil"
 	"github.com/longntv/go-ddd-template/test/integration/registry"
-
-	mockgateway "github.com/longntv/go-ddd-template/internal/domain/gateway/mock"
 )
 
 // HTTPTestHelper runs requests against the real router, services and
 // datastore backed by a fresh database. Passwords are hashed with real bcrypt
-// at minimum cost; only the event publisher is mocked.
+// at minimum cost. Events are saved to the outbox table, where tests check
+// them; nothing is published.
 type HTTPTestHelper struct {
-	router        *gin.Engine
-	gormDB        *gorm.DB
-	mockPublisher *mockgateway.MockEventPublisher
+	router *gin.Engine
+	gormDB *gorm.DB
 }
 
 // NewHTTPTestHelper creates a helper with its own cloned database.
@@ -35,14 +31,13 @@ func NewHTTPTestHelper(t *testing.T) *HTTPTestHelper {
 	t.Helper()
 
 	gormDB, _ := testutil.InitDB(t)
-	mockPublisher := mockgateway.NewMockEventPublisher(gomock.NewController(t))
 
-	router, err := registry.InitializeServer(gormDB, crypto.NewBcryptHasher(bcrypt.MinCost), mockPublisher, zaptest.NewLogger(t))
+	router, err := registry.InitializeServer(gormDB, crypto.NewBcryptHasher(bcrypt.MinCost))
 	if err != nil {
 		t.Fatalf("initialize server: %v", err)
 	}
 
-	return &HTTPTestHelper{router: router, gormDB: gormDB, mockPublisher: mockPublisher}
+	return &HTTPTestHelper{router: router, gormDB: gormDB}
 }
 
 // Do sends a JSON request and returns the status code and decoded body
@@ -86,6 +81,23 @@ func (h *HTTPTestHelper) PasswordHash(t *testing.T, email string) string {
 		t.Fatalf("read password hash: %v", err)
 	}
 	return hash
+}
+
+// OutboxEvent is an outbox row as the HTTP tests see it.
+type OutboxEvent struct {
+	Type, Subject string
+}
+
+// OutboxEvents returns the events in the outbox, oldest first. Fixture rows
+// are included, so compare against a snapshot taken before the request.
+func (h *HTTPTestHelper) OutboxEvents(t *testing.T) []OutboxEvent {
+	t.Helper()
+
+	var events []OutboxEvent
+	if err := h.gormDB.Table("outbox_events").Select("type", "subject").Order("seq").Scan(&events).Error; err != nil {
+		t.Fatalf("read outbox events: %v", err)
+	}
+	return events
 }
 
 // expectStatus fails the test when got differs from want.

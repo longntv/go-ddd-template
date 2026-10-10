@@ -7,7 +7,6 @@
 package registry
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/longntv/go-ddd-template/internal/config"
 	cloudevents2 "github.com/longntv/go-ddd-template/internal/handler/cloudevents"
 	"github.com/longntv/go-ddd-template/internal/handler/health"
@@ -26,8 +25,9 @@ import (
 
 // Injectors from wire.go:
 
-// InitializeServer initializes the HTTP server with the necessary dependencies.
-func InitializeServer(cfg *config.Config, logger *zap.Logger) (*gin.Engine, func(), error) {
+// InitializeServer initializes the HTTP server and outbox relay with the
+// necessary dependencies.
+func InitializeServer(cfg *config.Config, logger *zap.Logger) (*Server, func(), error) {
 	db, err := datastore.NewDB(cfg)
 	if err != nil {
 		return nil, nil, err
@@ -36,18 +36,13 @@ func InitializeServer(cfg *config.Config, logger *zap.Logger) (*gin.Engine, func
 	userCommandsGateway := datastore.NewUserWriter(gormDB)
 	userQueriesGateway := datastore.NewUserReader(gormDB)
 	bcryptHasher := crypto.ProvideBcryptHasher()
-	awsConfig, err := aws.LoadConfig(cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-	client := sns.NewClient(awsConfig)
-	publisher := sns.NewPublisherFromConfig(client, cfg)
-	cloudeventsPublisher := cloudevents.NewPublisher(publisher)
-	createUser := service.NewCreateUser(userCommandsGateway, userQueriesGateway, bcryptHasher, cloudeventsPublisher, logger)
+	transactor := datastore.NewTransactor(gormDB)
+	eventOutbox := datastore.NewEventOutbox(gormDB)
+	createUser := service.NewCreateUser(userCommandsGateway, userQueriesGateway, bcryptHasher, transactor, eventOutbox)
 	getUser := service.NewGetUser(userQueriesGateway)
 	listUsers := service.NewListUsers(userQueriesGateway)
-	updateUser := service.NewUpdateUser(userCommandsGateway, userQueriesGateway, bcryptHasher, cloudeventsPublisher, logger)
-	deleteUser := service.NewDeleteUser(userCommandsGateway, userQueriesGateway, cloudeventsPublisher, logger)
+	updateUser := service.NewUpdateUser(userCommandsGateway, userQueriesGateway, bcryptHasher, transactor, eventOutbox)
+	deleteUser := service.NewDeleteUser(userCommandsGateway, userQueriesGateway, transactor, eventOutbox)
 	handler := server.NewHandler(createUser, getUser, listUsers, updateUser, deleteUser)
 	healthHandler := health.NewHealthHandler()
 	corsConfig, err := middleware.ProvideCORSConfig(cfg)
@@ -55,7 +50,22 @@ func InitializeServer(cfg *config.Config, logger *zap.Logger) (*gin.Engine, func
 		return nil, nil, err
 	}
 	engine := http.Router(handler, healthHandler, corsConfig)
-	return engine, func() {
+	awsConfig, err := aws.LoadConfig(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	client := sns.NewClient(awsConfig)
+	publisher := sns.NewPublisherFromConfig(client, cfg)
+	cloudeventsPublisher := cloudevents.NewPublisher(publisher)
+	outboxRelay, err := datastore.NewOutboxRelay(gormDB, cloudeventsPublisher, cfg, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	registryServer := &Server{
+		Router:      engine,
+		OutboxRelay: outboxRelay,
+	}
+	return registryServer, func() {
 	}, nil
 }
 

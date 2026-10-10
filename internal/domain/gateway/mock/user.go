@@ -17,44 +17,6 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockBinder is a mock of Binder interface.
-type MockBinder struct {
-	ctrl     *gomock.Controller
-	recorder *MockBinderMockRecorder
-	isgomock struct{}
-}
-
-// MockBinderMockRecorder is the mock recorder for MockBinder.
-type MockBinderMockRecorder struct {
-	mock *MockBinder
-}
-
-// NewMockBinder creates a new mock instance.
-func NewMockBinder(ctrl *gomock.Controller) *MockBinder {
-	mock := &MockBinder{ctrl: ctrl}
-	mock.recorder = &MockBinderMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockBinder) EXPECT() *MockBinderMockRecorder {
-	return m.recorder
-}
-
-// Bind mocks base method.
-func (m *MockBinder) Bind(ctx context.Context) context.Context {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Bind", ctx)
-	ret0, _ := ret[0].(context.Context)
-	return ret0
-}
-
-// Bind indicates an expected call of Bind.
-func (mr *MockBinderMockRecorder) Bind(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bind", reflect.TypeOf((*MockBinder)(nil).Bind), ctx)
-}
-
 // MockUserQueriesGateway is a mock of UserQueriesGateway interface.
 type MockUserQueriesGateway struct {
 	ctrl     *gomock.Controller
