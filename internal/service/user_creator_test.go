@@ -96,7 +96,7 @@ func Test_createUser_Execute(t *testing.T) {
 
 				f.mockPublisher.EXPECT().
 					Publish(a.ctx, gomock.Any()).
-					DoAndReturn(func(_ context.Context, evt *event.UserEvent) error {
+					DoAndReturn(func(_ context.Context, evt *event.DomainEvent) error {
 						if evt.Type != event.UserCreatedEvent {
 							t.Errorf("Publish() event type = %s, want %s", evt.Type, event.UserCreatedEvent)
 						}

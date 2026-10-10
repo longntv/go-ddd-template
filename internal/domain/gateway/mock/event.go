@@ -42,7 +42,7 @@ func (m *MockEventPublisher) EXPECT() *MockEventPublisherMockRecorder {
 }
 
 // Publish mocks base method.
-func (m *MockEventPublisher) Publish(ctx context.Context, evt *event.UserEvent) error {
+func (m *MockEventPublisher) Publish(ctx context.Context, evt *event.DomainEvent) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Publish", ctx, evt)
 	ret0, _ := ret[0].(error)

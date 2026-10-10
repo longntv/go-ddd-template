@@ -13,7 +13,7 @@ import (
 // saved. A failure must not fail the request, so it is logged instead of
 // returned; the log carries the event ID so the event can be replayed.
 // logger must not be nil.
-func publishBestEffort(ctx context.Context, publisher gateway.EventPublisher, logger *zap.Logger, evt *event.UserEvent) {
+func publishBestEffort(ctx context.Context, publisher gateway.EventPublisher, logger *zap.Logger, evt *event.DomainEvent) {
 	if err := publisher.Publish(ctx, evt); err != nil {
 		logger.Error("failed to publish event",
 			zap.String("event_id", evt.ID.String()),

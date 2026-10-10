@@ -68,7 +68,7 @@ func Test_updateUser_Execute(t *testing.T) {
 					f.mockQueries.EXPECT().Get(a.ctx, userID).Return(updated, nil),
 					f.mockPublisher.EXPECT().
 						Publish(a.ctx, gomock.Any()).
-						DoAndReturn(func(_ context.Context, evt *event.UserEvent) error {
+						DoAndReturn(func(_ context.Context, evt *event.DomainEvent) error {
 							if evt.Type != event.UserUpdatedEvent {
 								t.Errorf("Publish() event type = %s, want %s", evt.Type, event.UserUpdatedEvent)
 							}

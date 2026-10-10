@@ -55,18 +55,19 @@ type OrderCommandsGateway interface {
 Add a sentinel `ErrOrderNotFound` in `domain/model/error.go`.
 
 ## 3. Events — `internal/domain/event/<agg>_event.go`
-Define `<Agg>EventTypePrefix = "com.go-ddd-template.<agg>"` and the event types next to the
-existing user constants, following `UserEventTypePrefix`:
+Create `<agg>_event.go` with `<Agg>EventTypePrefix = "com.go-ddd-template.<agg>"`, the event type
+constants and `<Agg>EventData`, following `user_event.go`:
 ```go
 const (
 	OrderEventTypePrefix = "com.go-ddd-template.order"
 	OrderCreatedEvent    = OrderEventTypePrefix + ".created"
 )
 ```
-`gateway.EventPublisher.Publish` currently takes `*event.UserEvent`. Its fields are generic
-(ID, Type, Source, Subject, Data, Timestamp). Before the first non-user event, rename it to a shared
-`DomainEvent` (type, constructor, publisher, mock, tests) in one focused change, rather than adding a
-second publisher method.
+Add an `<Agg>EventData` payload struct (JSON tags, no secrets). Events themselves are the shared
+`event.DomainEvent` (`domain_event.go`), so the publisher port needs no change:
+```go
+evt := event.NewDomainEvent(event.OrderCreatedEvent, event.Source, order.ID.String(), &event.OrderEventData{...})
+```
 
 ## 4. Use case contract — `internal/usecase`
 - Add the interface to `usecase/usecase.go` (one `Execute` method), then `make generate` for mocks.

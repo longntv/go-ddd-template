@@ -27,6 +27,7 @@ paths:
 |---|---|---|
 | Entity | `domain/entity/<agg>.go` | `type <Agg>`, `type <Agg>ID = uuid.UUID`, `New<Agg>(...)`, behaviour methods |
 | Ports | `domain/gateway/<agg>.go` | `<Agg>QueriesGateway` (reads), `<Agg>CommandsGateway` (writes) |
+| Events | `domain/event/<agg>_event.go` (shared envelope: `domain_event.go`) | `<Agg>EventTypePrefix`, `<Agg><Verb>Event` constants, `<Agg>EventData` |
 | Use case | `usecase/usecase.go` | `type <Verb><Agg> interface { Execute(ctx, *input.<Verb><Agg>) (*output.<Verb><Agg>, error) }` |
 | DTOs | `usecase/input/<agg>.go`, `usecase/output/<agg>.go` | struct per use case, `validate:` tags on input |
 | Service | `service/<agg>_<verb>er.go` (`user_creator.go`, `user_lister.go`) | `New<Verb><Agg>(ports..., logger *zap.Logger) usecase.<Verb><Agg>` (logger only when it publishes); implementation struct unexported |
@@ -56,7 +57,10 @@ paths:
   inline the string anywhere else.
 - Every type a service publishes must be registered in `ProvideConfiguredMux`
   (`infrastructure/cloudevents/provider.go`) using those constants.
-- Publishing goes through `gateway.EventPublisher`.
+- Events are `event.DomainEvent`, built with
+  `event.NewDomainEvent(<type>, event.Source, <aggID>, &event.<Agg>EventData{...})`; never inline the
+  source string. Payloads carry no secrets.
+- Publishing goes through `gateway.EventPublisher`; services call `publishBestEffort`.
 
 ## Interfaces and mocks
 - Port and use-case interface files carry `//go:generate go run go.uber.org/mock/mockgen@v0.6.0 -destination=mock/<file>.go -source=<file>.go`.
