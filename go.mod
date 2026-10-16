@@ -14,7 +14,7 @@ require (
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/google/wire v0.6.0
+	github.com/google/wire v0.7.0
 	github.com/jackc/pgx/v5 v5.5.5
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.28.0
